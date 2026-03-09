@@ -16,6 +16,8 @@
     dbStore.notifications.filter((n: any) => n.userId === authState.user?.id)
   );
 
+  let unreadCount = $derived(userNotifications.filter((n: any) => !n.read).length);
+
   function toggleRole() {
     if (!authState.user) return;
 
@@ -75,90 +77,108 @@
           class="h-[22px] w-[22px]"
           strokeWidth={1.5}
         />
-        <!-- Notification Dot -->
-        {#if userNotifications.filter((n: any) => !n.read).length > 0}
+        <!-- Notification Badge -->
+        {#if unreadCount > 0}
           <span
-            class="absolute top-3 right-3 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white"
-          ></span>
+            class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white shadow-sm"
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         {/if}
       </button>
 
       <!-- Notification Dropdown -->
       {#if isDropdownOpen}
         <div
-          class="absolute right-0 top-14 z-50 w-80 rounded-2xl border border-slate-100 bg-white p-4 shadow-xl"
+          class="absolute right-0 top-14 z-50 w-80 rounded-2xl border border-slate-100 bg-white p-4 shadow-xl ring-1 ring-black/5"
         >
-          <div class="mb-3 flex items-center justify-between">
+          <div class="mb-3 flex items-center justify-between px-1">
             <h3 class="font-semibold text-slate-800">Notifications</h3>
-            <button
-              class="text-xs font-medium text-[#7d326f] hover:underline cursor-pointer"
-              >Mark all read</button
-            >
+            {#if userNotifications.length > 0}
+              <button
+                class="text-xs font-medium text-[#7d326f] hover:underline cursor-pointer"
+                >Mark all read</button
+              >
+            {/if}
           </div>
 
-          <div class="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+          <!-- Stacked Notification Container -->
+          <div class="relative flex flex-col gap-2 max-h-[400px] overflow-y-auto px-1 pt-2 pb-4 scrollbar-hide">
             {#if userNotifications.length === 0}
-              <div class="p-3 text-center text-sm text-slate-500">
-                No new notifications
+              <div class="py-10 text-center flex flex-col items-center justify-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                <Bell class="h-8 w-8 text-slate-300 mb-2" strokeWidth={1} />
+                <p class="text-[13px] font-medium text-slate-500">No new notifications</p>
               </div>
             {:else}
-              {#each userNotifications as notification}
-                <!-- Dynamic Notification Item -->
-                <div class="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                  <div
-                    class="mt-0.5 h-2 w-2 shrink-0 rounded-full {notification.read
-                      ? 'bg-slate-300'
-                      : 'bg-[#7d326f]'}"
-                  ></div>
-                  <div>
-                    <p class="text-[13px] font-medium text-slate-800">
-                      {notification.title}
-                    </p>
-                    <p class="text-xs text-slate-500 mt-0.5">
-                      {notification.message}
-                    </p>
-                    <!-- Fallback date if not strictly ISO, generic display -->
-                    <p class="mt-1 text-[10px] text-slate-400">Just now</p>
-                  </div>
-
-                  {#if notification.type === "invitation"}
+              <div class="flex flex-col space-y-[-12px]">
+                {#each userNotifications as notification, i}
+                  <!-- Dynamic Notification Item with "stack" feel -->
+                  <div 
+                    class="group flex items-start gap-3 rounded-xl bg-white p-4 border border-slate-200 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-default relative"
+                    style="z-index: {userNotifications.length - i}; margin-bottom: 4px;"
+                  >
                     <div
-                      class="ml-auto flex items-center gap-1.5 self-center pl-2"
-                    >
-                      <button
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          acceptInvitation(
-                            notification.id,
-                            notification.programId,
-                            authState.user?.email || "usr_payee_01"
-                          );
-                        }}
-                        class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 transition-colors hover:bg-emerald-100 cursor-pointer border border-emerald-100"
-                        title="Accept Invitation"
-                      >
-                        <Check
-                          class="h-4 w-4"
-                          strokeWidth={2.5}
-                        />
-                      </button>
-                      <button
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          rejectInvitation(notification.id);
-                        }}
-                        class="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 transition-colors hover:bg-rose-100 cursor-pointer border border-rose-100"
-                        title="Decline Invitation"
-                      >
-                        <X
-                          class="h-4 w-4"
-                          strokeWidth={2.5}
-                        />
-                      </button>
+                      class="mt-1.5 h-2 w-2 shrink-0 rounded-full {notification.read
+                        ? 'bg-slate-200'
+                        : 'bg-[#7d326f] shadow-[0_0_0_3px_rgba(125,50,111,0.1)]'}"
+                    ></div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[13px] font-bold text-slate-800 leading-tight truncate group-hover:whitespace-normal">
+                        {notification.title}
+                      </p>
+                      <p class="text-[12px] text-slate-500 mt-1.5 leading-relaxed">
+                        {notification.message}
+                      </p>
+                      <div class="mt-3 flex items-center justify-between">
+                        <p class="text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
+                          <span class="h-1.5 w-1.5 rounded-full bg-slate-200"></span>
+                          JUST NOW
+                        </p>
+                        {#if !notification.read}
+                          <span class="text-[9px] font-black text-[#7d326f] uppercase tracking-widest bg-[#7d326f]/5 px-1.5 py-0.5 rounded">New</span>
+                        {/if}
+                      </div>
                     </div>
-                  {/if}
-                </div>
-              {/each}
+
+                    {#if notification.type === "invitation"}
+                      <div
+                        class="ml-auto flex flex-col gap-2 self-center pl-3 border-l border-slate-100"
+                      >
+                        <button
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            acceptInvitation(
+                              notification.id,
+                              notification.programId,
+                              authState.user?.id || ""
+                            );
+                          }}
+                          class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#7d326f]/5 text-[#7d326f] transition-all hover:bg-[#7d326f] hover:text-white cursor-pointer border border-[#7d326f]/10 shadow-sm"
+                          title="Accept Invitation"
+                        >
+                          <Check
+                            class="h-4 w-4"
+                            strokeWidth={3}
+                          />
+                        </button>
+                        <button
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            rejectInvitation(notification.id);
+                          }}
+                          class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-slate-200 hover:text-slate-600 cursor-pointer border border-slate-200 shadow-sm"
+                          title="Decline Invitation"
+                        >
+                          <X
+                            class="h-4 w-4"
+                            strokeWidth={3}
+                          />
+                        </button>
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
             {/if}
           </div>
         </div>
@@ -166,3 +186,13 @@
     </div>
   </div>
 </div>
+
+<style>
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+</style>

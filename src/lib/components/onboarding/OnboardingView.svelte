@@ -335,6 +335,7 @@
               bind:value={businessType}
               options={[
                 "Healthcare",
+                "Insurance",
                 "Transport",
                 "Pharmacy",
                 "Logistics",
@@ -357,7 +358,10 @@
                 "Clinic",
                 "Diagnostic Center",
                 "Emergency Services",
-                "Wellness Center"
+                "Wellness Center",
+                "Life Insurance",
+                "General Insurance",
+                "Health Insurance"
               ]}
             />
           </div>

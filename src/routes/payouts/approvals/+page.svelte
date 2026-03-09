@@ -129,13 +129,14 @@
     </div>
   </div>
 
-  <!-- Primary Wrapper box -->
+  <!-- Primary Wrapper box with blue border mimicking wireframes -->
   <div
-    class="mt-20 w-full rounded-2xl bg-white p-8 lg:p-12 shadow-sm flex flex-col overflow-hidden relative min-h-[600px]"
+    class="mt-20 w-full rounded-2xl border border-slate-100 bg-white p-8 lg:p-12 shadow-sm flex flex-col overflow-hidden relative min-h-[600px]"
   >
     <div class="flex justify-between items-center mb-8">
-      <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-        Approve your payments
+      <h1 class="text-2xl tracking-tight text-slate-800">
+        <span class="text-[#3b2b73]">Approve</span> your
+        <span class="text-[#3b2b73]">payments</span>
       </h1>
       <button
         onclick={toggleSelectAll}

@@ -84,11 +84,11 @@
     </div>
   </div>
 
-  <!-- Primary Wrapper box with minimal styling mimicking wireframe -->
+  <!-- Primary Wrapper box with blue border mimicking wireframes -->
   <div
-    class="mt-20 w-full rounded-2xl bg-white p-8 lg:p-12 flex flex-col overflow-hidden"
+    class="mt-20 w-full rounded-2xl border border-slate-100 bg-white p-8 lg:p-12 shadow-sm flex flex-col overflow-hidden"
   >
-    <h1 class="text-2xl tracking-tight text-slate-800 mb-8 font-semibold">
+    <h1 class="text-2xl tracking-tight text-slate-800 mb-8">
       <span class="text-[#3b2b73]">Manage</span> and
       <span class="text-[#3b2b73]">redeem</span> your approved claims
     </h1>

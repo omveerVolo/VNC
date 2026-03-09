@@ -47,7 +47,7 @@
         const authMatch =
           authState.user?.role === "payee"
             ? p.userId === authState.user?.id
-            : true;
+            : accessiblePrograms.some((prog: any) => prog.id === p.programId);
         if (!authMatch) return false;
 
         const statusMatch =
@@ -97,9 +97,14 @@
         ? new Set(accessiblePrograms.flatMap((p: any) => p.enrolledPayees))
             .size || 0
         : 3,
-    totalCardsRedeemed: dbStore.payouts.filter(
-      (p: any) => p.status === "Redeemed"
-    ).length,
+    totalCardsRedeemed: dbStore.payouts.filter((p: any) => {
+      const isRedeemed = p.status === "Redeemed";
+      const isAuthorized =
+        authState.user?.role === "payer"
+          ? accessiblePrograms.some((prog: any) => prog.id === p.programId)
+          : p.userId === authState.user?.id;
+      return isRedeemed && isAuthorized;
+    }).length,
     totalPrograms: accessiblePrograms.length
   });
 

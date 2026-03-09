@@ -16,9 +16,22 @@
       return (
         p.enrolledPayees.includes(authState.user.id) ||
         p.enrolledPayees.length === 0
-      ); // For demo purposes, show empty ones if no specific enrollments exist yet, or just hardcode matching the mock seeded string
+      );
     })
   );
+
+  // Helper to count payouts for a specific user within a specific program
+  const getPayoutCountForUser = (programId: string) => {
+    if (!authState.user?.id) return 0;
+    return dbStore.payouts.filter(
+      (p: any) => p.programId === programId && p.userId === authState.user?.id
+    ).length;
+  };
+
+  // Helper to count total unique payees in a program
+  const getPayeeCountForProgram = (program: any) => {
+    return program.enrolledPayees?.length || 0;
+  };
 
   let activeCancelId = $state<string | null>(null);
 
@@ -105,7 +118,7 @@
                       class="flex items-center px-4 font-semibold text-slate-800 text-[14px]"
                     >
                       <span class="text-[15px] mr-1"
-                        >{program.payoutsReceived || 0}</span
+                        >{getPayoutCountForUser(program.id)}</span
                       > payouts received
                     </div>
 
@@ -126,7 +139,7 @@
                     <div class="flex items-center gap-3 px-2">
                       <User class="h-5 w-5 text-slate-600" />
                       <span class="text-[13px] font-medium text-slate-600"
-                        >{program.enrolledPayees} payees enrolled</span
+                        >{getPayeeCountForProgram(program)} payees enrolled</span
                       >
                     </div>
 
@@ -146,6 +159,55 @@
     </div>
   </div>
 </div>
+
+<!-- Global Cancel Enrollment Modal -->
+{#if activeCancelId !== null}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300"
+    onclick={() => (activeCancelId = null)}
+  >
+    <div
+      class="relative w-full max-w-[400px] rounded-[24px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-300"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="flex items-start gap-5 mb-8">
+        <div
+          class="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center shrink-0"
+        >
+          <AlertCircle class="h-6 w-6 text-red-600" />
+        </div>
+        <div class="flex flex-col pt-1">
+          <h2 class="text-[20px] font-semibold text-slate-900 leading-tight mb-1">
+            Cancel Enrollment?
+          </h2>
+          <p class="text-[13px] text-slate-500 leading-relaxed font-medium">
+            Are you sure you want to cancel your enrollment in this program?
+            This action cannot be undone.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 w-full">
+        <button
+          class="px-6 py-3 rounded-xl bg-slate-100 text-slate-700 text-[14px] font-semibold hover:bg-slate-200 transition-colors cursor-pointer"
+          onclick={() => (activeCancelId = null)}
+        >
+          Nevermind
+        </button>
+        <button
+          class="px-6 py-3 rounded-xl bg-[#0066cc] text-white text-[14px] font-semibold shadow-sm hover:bg-[#0052a3] transition-colors cursor-pointer flex items-center justify-center"
+          onclick={() => {
+            activeCancelId = null;
+          }}
+        >
+          Confirm Cancellation
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Global Cancel Enrollment Modal -->
 {#if activeCancelId !== null}

@@ -23,12 +23,12 @@
     accessiblePrograms.find((p: any) => p.name === selectedProgram)
   );
   let payeeOptions = $derived(
-    realProgram?.category
+    realProgram?.enrolledPayees
       ? (() => {
           const matchedOptions = dbStore.users
             .filter(
               (u: any) =>
-                u.role === "payee" && u.category === realProgram.category
+                u.role === "payee" && realProgram.enrolledPayees.includes(u.id)
             )
             .map((u: any) => u.businessName || u.name);
           return matchedOptions.length > 0

@@ -2,16 +2,7 @@ import { authState } from "./auth.svelte.js";
 import initialData from "../data/mockDatabase.json";
 
 function loadData() {
-  if (typeof window !== "undefined") {
-    const version = localStorage.getItem("dbVersion");
-    if (version === "8") {
-      const saved = localStorage.getItem("dbStore");
-      if (saved) return JSON.parse(saved);
-    } else {
-      localStorage.setItem("dbVersion", "8");
-      localStorage.removeItem("dbStore");
-    }
-  }
+  // Always start with a fresh copy of initialData for every session refresh
   return JSON.parse(JSON.stringify(initialData));
 }
 
@@ -25,14 +16,7 @@ export const dbStore = $state({
 });
 
 function saveDb() {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("dbStore", JSON.stringify({
-      users: dbStore.users,
-      programs: dbStore.programs,
-      notifications: dbStore.notifications,
-      payouts: dbStore.payouts
-    }));
-  }
+  // Persistence disabled per user request to reset on refresh/restart
 }
 
 export function redeemPayout(payoutId: string) {
@@ -50,9 +34,24 @@ export function registerUser(user: any) {
 }
 
 export function approvePayerPayout(payoutId: string) {
+  const payout = dbStore.payouts.find((p: any) => p.id === payoutId);
+  if (!payout) return;
+
   dbStore.payouts = dbStore.payouts.map((p: any) =>
     p.id === payoutId ? { ...p, status: "Ready to redeem" } : p
   );
+
+  // Provide a notification to the actual payee account about the approved payout
+  const newNotif = {
+    id: `notif_${Math.floor(Math.random() * 10000)}`,
+    userId: payout.userId,
+    title: "Payment Approved",
+    message: `Your payout for Claim No. ${payout.claimNo} has been approved and is ready to redeem.`,
+    read: false,
+    date: new Date().toISOString()
+  };
+
+  dbStore.notifications = [newNotif, ...dbStore.notifications];
   saveDb();
 }
 
@@ -98,22 +97,31 @@ export function createPayout(amount: string, programId: string, payee: string) {
 }
 
 export function createProgram(name: string, type: string, category: string, payeeEmail?: string) {
+  if (!authState.user?.id) return;
+
+  // Look up the actual payee ID by email if provided
+  let targetId = "";
+  if (payeeEmail) {
+    const targetUser = dbStore.users.find((u: any) => u.email === payeeEmail);
+    targetId = targetUser ? targetUser.id : payeeEmail;
+  }
+
   const newProgram = {
     id: `prog_med_${Math.floor(Math.random() * 10000)}`,
     name: name,
-    payerId: authState.user?.id || "usr_payer_01",
+    payerId: authState.user.id,
     status: "Active",
     category: category,
     createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    createdBy: "System Input",
+    createdBy: authState.user.name || "System",
     payoutsReceived: 0,
-    enrolledPayees: payeeEmail ? [payeeEmail] : [] // starts empty unless invited
+    enrolledPayees: targetId ? [targetId] : [] // Store ID instead of email
   };
   
   // Also push a demo notification allowing the Payer to see they made a program
   const newNotif = {
     id: `notif_${Math.floor(Math.random() * 10000)}`,
-    userId: authState.user?.id || "usr_payer_01",
+    userId: authState.user.id,
     title: "Program Configured Successfully",
     message: `Payment Program "${name}" for ${type} (${category}) is now active.`,
     read: false,
@@ -123,10 +131,10 @@ export function createProgram(name: string, type: string, category: string, paye
   dbStore.programs = [newProgram, ...dbStore.programs];
   dbStore.notifications = [newNotif, ...dbStore.notifications];
 
-  if (payeeEmail) {
+  if (targetId) {
     const payeeNotif = {
       id: `notif_${Math.floor(Math.random() * 10000)}`,
-      userId: payeeEmail, // using email as ID for the demo payload
+      userId: targetId, // Use the actual User ID
       title: "New Program Invitation",
       message: `You have been added to the "${name}" payment program by your payer. Do you wish to accept?`,
       read: false,
@@ -160,16 +168,43 @@ export function rejectInvitation(notificationId: string) {
 }
 
 export function updateProgram(id: string, name: string, type: string, category: string, payeeEmail?: string) {
+  let targetId = "";
+  if (payeeEmail) {
+    const targetUser = dbStore.users.find((u: any) => u.email === payeeEmail);
+    targetId = targetUser ? targetUser.id : payeeEmail;
+  }
+
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === id) {
       const updated = { ...p, name, category };
-      if (payeeEmail && !updated.enrolledPayees.includes(payeeEmail)) {
-        updated.enrolledPayees = [...updated.enrolledPayees, payeeEmail];
+      if (targetId && !updated.enrolledPayees.includes(targetId)) {
+        updated.enrolledPayees = [...updated.enrolledPayees, targetId];
       }
       return updated;
     }
     return p;
   });
+
+  if (targetId) {
+    // Check if a notification already exists for this invitation to avoid duplicates
+    const alreadyInvited = dbStore.notifications.some(
+      (n: any) => n.userId === targetId && n.programId === id
+    );
+
+    if (!alreadyInvited) {
+      const payeeNotif = {
+        id: `notif_${Math.floor(Math.random() * 10000)}`,
+        userId: targetId,
+        title: "New Program Invitation",
+        message: `You have been added to the "${name}" payment program by your payer. Do you wish to accept?`,
+        read: false,
+        type: "invitation",
+        programId: id,
+        date: new Date().toISOString()
+      };
+      dbStore.notifications = [payeeNotif, ...dbStore.notifications];
+    }
+  }
   saveDb();
 }
 
