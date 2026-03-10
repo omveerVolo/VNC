@@ -69,56 +69,7 @@
 
     <div class="p-8">
       {#if step === 1}
-        <!-- STEP 1: OTP Verification -->
-        <div class="flex flex-col items-center">
-          <h2 class="text-[20px] font-semibold text-[#003366] mb-1">
-            OTP Verification
-          </h2>
-          <p class="text-[12px] font-medium text-slate-500 mb-8 tracking-tight">
-            Enter the OTP sent to <strong>+91 8076******</strong>
-          </p>
-
-          <div class="flex gap-4 mb-6">
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="1"
-            />
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="4"
-            />
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="3"
-            />
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="0"
-            />
-          </div>
-
-          <p class="text-[10px] font-medium text-slate-400 mb-1">
-            I didn't receive the code
-          </p>
-          <button
-            class="text-[11px] font-semibold text-[#0066cc] hover:underline cursor-pointer mb-8"
-            >Resend OTP</button
-          >
-
-          <button
-            class="w-full h-11 rounded-xl bg-[#0066cc] text-[14px] font-semibold text-white shadow-sm hover:bg-[#0052a3] transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
-            onclick={handleNext}
-            disabled={isProcessing}
-          >
-            {isProcessing ? "Verifying..." : "Verify"}
-          </button>
-        </div>
-      {:else if step === 2}
-        <!-- STEP 2: NDC Approval Document -->
+        <!-- STEP 1: NDC Approval Document (Shifted from Step 2) -->
         <div class="flex flex-col">
           <h2 class="text-[28px] font-[800] text-[#003366] mb-1 tracking-tight">
             NDC Approval Document
@@ -229,8 +180,8 @@
             {isProcessing ? "Processing..." : "Proceed to Payment"}
           </button>
         </div>
-      {:else if step === 3}
-        <!-- STEP 3: Payment Gateway (Virtual Card) -->
+      {:else if step === 2}
+        <!-- STEP 2: Payment Gateway (Virtual Card) (Shifted from Step 3) -->
         <div class="flex flex-col items-center">
           <h2
             class="text-[18px] font-semibold text-[#003366] w-full text-left mb-1"
@@ -333,8 +284,8 @@
             {isProcessing ? "Authenticating..." : "Continue to Payment"}
           </button>
         </div>
-      {:else if step === 4}
-        <!-- STEP 4: Complete Payment -->
+      {:else if step === 3}
+        <!-- STEP 3: Complete Payment (Shifted from Step 4) -->
         <div class="flex flex-col">
           <h2 class="text-[18px] font-semibold text-[#003366] mb-1">
             Complete Payment
@@ -410,11 +361,60 @@
             <span
               >{isProcessing
                 ? "Processing Transaction..."
-                : "Complete Payment"}</span
+                : "Proceed to Verify"}</span
             >
             {#if !isProcessing}
-              <ArrowUpRight class="h-4 w-4" />
+              <ArrowRight class="h-4 w-4" />
             {/if}
+          </button>
+        </div>
+      {:else if step === 4}
+        <!-- STEP 4: OTP Verification (Second Last Flow - Shifted from Step 1) -->
+        <div class="flex flex-col items-center">
+          <h2 class="text-[20px] font-semibold text-[#003366] mb-1">
+            OTP Verification
+          </h2>
+          <p class="text-[12px] font-medium text-slate-500 mb-8 tracking-tight">
+            Enter the OTP sent to <strong>+91 8076******</strong>
+          </p>
+
+          <div class="flex gap-4 mb-6">
+            <input
+              type="text"
+              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
+              value="1"
+            />
+            <input
+              type="text"
+              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
+              value="4"
+            />
+            <input
+              type="text"
+              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
+              value="3"
+            />
+            <input
+              type="text"
+              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
+              value="0"
+            />
+          </div>
+
+          <p class="text-[10px] font-medium text-slate-400 mb-1">
+            I didn't receive the code
+          </p>
+          <button
+            class="text-[11px] font-semibold text-[#0066cc] hover:underline cursor-pointer mb-8"
+            >Resend OTP</button
+          >
+
+          <button
+            class="w-full h-11 rounded-xl bg-[#0066cc] text-[14px] font-semibold text-white shadow-sm hover:bg-[#0052a3] transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
+            onclick={handleNext}
+            disabled={isProcessing}
+          >
+            {isProcessing ? "Verifying..." : "Verify & Complete Payment"}
           </button>
         </div>
       {:else if step === 5}

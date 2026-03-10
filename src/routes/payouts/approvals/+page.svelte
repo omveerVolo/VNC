@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Search, CheckCircle2 } from "@lucide/svelte";
+  import { Search, CheckCircle2, Download, Clock } from "@lucide/svelte";
+  import RedeemModal from "$lib/components/payouts/RedeemModal.svelte";
 
-  import { dbStore, approvePayerPayout, redeemPayout } from "$lib/state/db.svelte.js";
+  import { dbStore, approvePayerPayout } from "$lib/state/db.svelte.js";
   import { authState } from "$lib/state/auth.svelte.js";
 
   // Identify if the actual logged-in user is an admin
@@ -13,6 +14,7 @@
   );
 
   let selectedPayoutIds = $state<string[]>([]);
+  let selectedPayout = $state<any>(null);
 
   let searchQuery = $state("");
   let isAllSelected = $state(false);
@@ -82,7 +84,9 @@
           dbId: p.id, // Keep a reference to the global mutable ID
           id: p.claimNo,
           program: program?.name || "Medical Payouts 2026",
-          payer: activeUser?.role === "payee" ? payerName : p.providerName,
+          provider: activeUser?.role === "payee" ? payerName : p.providerName,
+          patientName: p.patientName,
+          createdAt: p.date,
           approvedAmount: `₹${p.amount}`,
           gst: "₹1,250",
           payableAmount: `₹${p.amount}`,
@@ -113,20 +117,16 @@
 
   function handleApprove() {
     if (selectedPayoutIds.length > 0) {
-      if (isInternalAdmin) {
-        // Admin redeems
-        for (const id of selectedPayoutIds) {
-          redeemPayout(id);
-        }
-        showSuccessModal = true;
-      } else {
-        // Payer approves
-        for (const id of selectedPayoutIds) {
-          approvePayerPayout(id);
-        }
-        showSuccessModal = true;
+      // Payer approves
+      for (const id of selectedPayoutIds) {
+        approvePayerPayout(id);
       }
+      showSuccessModal = true;
     }
+  }
+
+  function handleRedeemClick(payout: any) {
+    selectedPayout = payout;
   }
 
   function handleDone() {
@@ -134,6 +134,10 @@
     selectedPayoutIds = [];
     isAllSelected = false;
     showSuccessModal = false;
+  }
+
+  function handleModalClose() {
+    selectedPayout = null;
   }
 </script>
 
@@ -173,26 +177,34 @@
   >
     <div class="flex justify-between items-center mb-8">
       <h1 class="text-2xl tracking-tight text-slate-800">
-        <span class="text-[#3b2b73]">{isInternalAdmin ? 'Approved' : 'Approve'}</span> your
-        <span class="text-[#3b2b73]">payments</span>
+        {#if isInternalAdmin}
+          <span class="text-[#3b2b73]">Manage</span> and
+          <span class="text-[#3b2b73]">redeem</span> your approved claims
+        {:else}
+          <span class="text-[#3b2b73]">Approve</span> your
+          <span class="text-[#3b2b73]">payments</span>
+        {/if}
       </h1>
-      <button
-        onclick={toggleSelectAll}
-        class="border border-slate-300 rounded-lg px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-      >
-        Select All
-      </button>
+      
+      {#if !isInternalAdmin}
+        <button
+          onclick={toggleSelectAll}
+          class="border border-slate-300 rounded-lg px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+        >
+          Select All
+        </button>
+      {/if}
     </div>
 
     <div class="w-full overflow-x-auto pb-4">
       <div class="min-w-[1000px] flex flex-col">
         <!-- Grid Header -->
         <div
-          class="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr_1fr] gap-4 rounded-xl bg-[#e6dbf3] px-6 py-4 text-[13px] text-[#5b4897] font-semibold"
+          class="grid grid-cols-[1fr_1.5fr_2fr_1.5fr_1fr_1.5fr_1.5fr_1.5fr] gap-4 rounded-xl bg-[#e6dbf3] px-6 py-4 text-[13px] text-[#5b4897] font-semibold"
         >
           <div class="col-span-1 whitespace-nowrap">Program</div>
-          <div class="col-span-1 whitespace-nowrap text-center">Payer</div>
-          <div class="col-span-1 whitespace-nowrap text-center">Claim ID</div>
+          <div class="col-span-1 whitespace-nowrap">Provider</div>
+          <div class="col-span-1 whitespace-nowrap">Transaction ID</div>
           <div class="col-span-1 text-center whitespace-nowrap">
             Approved Amount
           </div>
@@ -200,15 +212,15 @@
           <div class="col-span-1 text-center whitespace-nowrap">
             Payable Amount
           </div>
-          <div class="col-span-1 text-center whitespace-nowrap">Status</div>
-          <div class="col-span-1 text-center whitespace-nowrap">Action</div>
+          <div class="col-span-1 text-left whitespace-nowrap">Status</div>
+          <div class="col-span-1 text-right whitespace-nowrap">Action</div>
         </div>
 
         <!-- Grid Rows -->
         <div class="mt-3 flex flex-col gap-3">
           {#each paginatedPayouts as payout}
             <div
-              class="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr_1fr] items-center gap-4 rounded-xl border border-transparent bg-slate-50 px-6 py-4 transition-all hover:shadow-sm cursor-default"
+              class="grid grid-cols-[1fr_1.5fr_2fr_1.5fr_1fr_1.5fr_1.5fr_1.5fr] items-center gap-4 rounded-xl border border-transparent bg-slate-50 px-6 py-4 transition-all hover:shadow-sm cursor-default"
             >
               <div
                 class="col-span-1 text-[13px] font-semibold text-slate-600 truncate"
@@ -216,14 +228,20 @@
                 {payout.program}
               </div>
 
-              <div
-                class="col-span-1 text-center text-[13px] font-semibold text-slate-700 xl:truncate"
-              >
-                {payout.payer}
+              <div class="col-span-1 flex flex-col items-start xl:truncate">
+                <span class="text-[13px] font-semibold text-slate-700"
+                  >{payout.provider}</span
+                >
+                <div
+                  class="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 font-medium"
+                >
+                  <Clock class="h-3 w-3" />
+                  <span>{payout.createdAt}</span>
+                </div>
               </div>
 
               <div
-                class="col-span-1 text-center font-mono text-slate-500 text-[12px] whitespace-nowrap"
+                class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
                 {payout.id}
               </div>
@@ -246,38 +264,36 @@
                 {payout.payableAmount}
               </div>
 
-              <div
-                class="col-span-1 flex items-center justify-center text-center"
-              >
-                <span
-                  class="text-[12px] font-medium {payout.status === 'Approved'
-                    ? 'text-green-600'
-                    : 'text-[#f48a60]'} whitespace-nowrap transition-colors"
-                >
-                  {payout.status}
-                </span>
+              <div class="col-span-1 flex items-center text-left">
+                {#if isInternalAdmin}
+                  <div
+                    class="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1 border border-blue-200"
+                  >
+                    <Clock class="h-3 w-3 stroke-[2.5]" />
+                    {payout.status}
+                  </div>
+                {:else}
+                  <span
+                    class="text-[12px] font-medium {payout.status === 'Approved'
+                      ? 'text-green-600'
+                      : 'text-[#f48a60]'} whitespace-nowrap transition-colors"
+                  >
+                    {payout.status}
+                  </span>
+                {/if}
               </div>
 
               <div
-                class="col-span-1 flex items-center justify-center whitespace-nowrap"
+                class="col-span-1 flex items-center justify-end whitespace-nowrap"
               >
-                {#if payout.status === "Approved"}
-                  <div
-                    class="h-[22px] w-[22px] rounded-full bg-green-500 flex items-center justify-center shrink-0 shadow-sm border border-transparent transition-colors"
+                {#if isInternalAdmin}
+                  <button
+                    class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-28 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm border border-transparent"
+                    onclick={() => handleRedeemClick(payout)}
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="white"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><polyline points="20 6 9 17 4 12"></polyline></svg
-                    >
-                  </div>
+                    <Download class="h-3.5 w-3.5" />
+                    Redeem
+                  </button>
                 {:else}
                   <!-- svelte-ignore a11y_click_events_have_key_events -->
                   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -365,18 +381,20 @@
       </div>
     </div>
 
-    <!-- Floating Action Button -->
-    <div class="absolute bottom-8 right-8 lg:bottom-12 lg:right-12">
-      <button
-        onclick={handleApprove}
-        disabled={selectedPayoutIds.length === 0}
-        class="bg-[#6e56cf] hover:bg-[#5a46aa] text-white px-8 py-3 rounded-xl text-[14px] font-semibold shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isInternalAdmin ? 'Redeem Selected' : 'Approve'}
-      </button>
-    </div>
+    <!-- Floating Action Button (Only for Payer) -->
+    {#if !isInternalAdmin}
+      <div class="absolute bottom-8 right-8 lg:bottom-12 lg:right-12">
+        <button
+          onclick={handleApprove}
+          disabled={selectedPayoutIds.length === 0}
+          class="bg-[#6e56cf] hover:bg-[#5a46aa] text-white px-8 py-3 rounded-xl text-[14px] font-semibold shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Approve
+        </button>
+      </div>
+    {/if}
 
-    <!-- Success Modal Overlay -->
+    <!-- Success Modal Overlay (Payer) -->
     {#if showSuccessModal}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -388,7 +406,7 @@
           onclick={(e) => e.stopPropagation()}
         >
           <h2 class="text-[17px] font-semibold text-[#3b2b73] mb-6 text-center">
-            {isInternalAdmin ? 'All Payments Redeemed' : 'All Payments Approved'}
+            All Payments Approved
           </h2>
           <button
             class="w-full py-2.5 rounded-lg bg-[#5b4897] text-white text-[13px] font-semibold shadow-sm hover:bg-[#433177] transition-colors cursor-pointer"
@@ -400,4 +418,11 @@
       </div>
     {/if}
   </div>
+
+  {#if selectedPayout}
+    <RedeemModal
+      payout={selectedPayout}
+      onClose={handleModalClose}
+    />
+  {/if}
 </div>
