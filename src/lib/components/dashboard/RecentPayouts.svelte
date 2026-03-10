@@ -62,7 +62,7 @@
         <!-- Col 5: Actions / Status -->
         <div class="w-32 flex justify-end lg:justify-start">
           {#if isPayee}
-            {#if (payout.status === "Ready to redeem" || payout.status === "Ready to Redeem") && !authState.isAdminView}
+            {#if (payout.status === "Ready to redeem" || payout.status === "Ready to Redeem") && (activeUser?.role === "payee" || activeUser?.role === "admin")}
               <button
                 class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-full py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 border border-transparent"
                 onclick={() => onredeem(payout)}

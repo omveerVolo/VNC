@@ -1,10 +1,13 @@
 <script lang="ts">
   import { Search, CheckCircle2 } from "@lucide/svelte";
 
-  import { dbStore, approvePayerPayout } from "$lib/state/db.svelte.js";
+  import { dbStore, approvePayerPayout, redeemPayout } from "$lib/state/db.svelte.js";
   import { authState } from "$lib/state/auth.svelte.js";
 
-  // Derive target identity securely
+  // Identify if the actual logged-in user is an admin
+  let isInternalAdmin = $derived(authState.user?.role === "admin");
+
+  // activeUser represents the "Identity" we are currently presenting (the payee if impersonating)
   let activeUser = $derived(
     authState.isAdminView ? authState.viewingAs : authState.user
   );
@@ -25,10 +28,24 @@
     }
   });
 
-  // Derived state reading exclusively payloads that need Payer action
+  // Derived state reading exclusively payloads that need action
   let filteredPayouts = $derived(
     dbStore.payouts
       .filter((p: any) => {
+        // ADMIN MODE: Show redeemable items
+        if (isInternalAdmin) {
+          const statusMatch = p.status === "Ready to redeem";
+          if (!statusMatch) return false;
+
+          // If impersonating a specific payee, restrict to their items
+          if (authState.isAdminView && authState.viewingAs) {
+            return p.userId === authState.viewingAs.id;
+          }
+          // Global admin view (not impersonating) shows all redeemable items
+          return true;
+        }
+
+        // PAYER MODE: Show pending items for their programs
         if (p.status !== "Pending") return false;
 
         if (activeUser?.role === "payee") {
@@ -88,8 +105,6 @@
   function toggleSelectAll() {
     isAllSelected = !isAllSelected;
     if (isAllSelected) {
-      // Select all in current view or all globally? Usually all in view is safer,
-      // but let's select all filtered to be robust.
       selectedPayoutIds = filteredPayouts.map((p: any) => p.dbId);
     } else {
       selectedPayoutIds = [];
@@ -98,11 +113,19 @@
 
   function handleApprove() {
     if (selectedPayoutIds.length > 0) {
-      // Process approvals into the master database synchronously
-      for (const id of selectedPayoutIds) {
-        approvePayerPayout(id);
+      if (isInternalAdmin) {
+        // Admin redeems
+        for (const id of selectedPayoutIds) {
+          redeemPayout(id);
+        }
+        showSuccessModal = true;
+      } else {
+        // Payer approves
+        for (const id of selectedPayoutIds) {
+          approvePayerPayout(id);
+        }
+        showSuccessModal = true;
       }
-      showSuccessModal = true;
     }
   }
 
@@ -115,13 +138,13 @@
 </script>
 
 <svelte:head>
-  <title>Approve Payments - HDFC Bank</title>
+  <title>{isInternalAdmin ? 'Approved' : 'Approve'} Payments - HDFC Bank</title>
 </svelte:head>
 
 <div
   class="flex h-full w-full flex-col p-8 lg:p-12 relative overflow-y-auto min-h-screen"
 >
-  <!-- Global Search Bar centered at top mimicking the wireframe -->
+  <!-- Global Search Bar centered at top -->
   <div class="absolute top-8 left-1/2 -translate-x-1/2 w-full max-w-lg z-10">
     <div
       class="flex h-12 w-full items-center overflow-hidden rounded-full border border-slate-200 bg-white px-2 shadow-sm transition-shadow"
@@ -144,13 +167,13 @@
     </div>
   </div>
 
-  <!-- Primary Wrapper box with blue border mimicking wireframes -->
+  <!-- Primary Wrapper box -->
   <div
     class="mt-20 w-full rounded-2xl border border-slate-100 bg-white p-8 lg:p-12 shadow-sm flex flex-col overflow-hidden relative min-h-[600px]"
   >
     <div class="flex justify-between items-center mb-8">
       <h1 class="text-2xl tracking-tight text-slate-800">
-        <span class="text-[#3b2b73]">Approve</span> your
+        <span class="text-[#3b2b73]">{isInternalAdmin ? 'Approved' : 'Approve'}</span> your
         <span class="text-[#3b2b73]">payments</span>
       </h1>
       <button
@@ -313,23 +336,28 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   class="text-slate-400"
-                  ><rect
-                    x="2"
-                    y="4"
-                    width="20"
-                    height="16"
-                    rx="2"
-                  /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg
+                  ><path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  /><line
+                    x1="16"
+                    y1="13"
+                    x2="8"
+                    y2="13"
+                  /><line
+                    x1="16"
+                    y1="17"
+                    x2="8"
+                    y2="17"
+                  /><polyline points="10 9 9 9 8 9" /></svg
                 >
               </div>
               <p class="text-[15px] font-semibold text-slate-700">
-                No pending approvals
+                No items available
               </p>
               <p
                 class="text-[13px] text-slate-500 mt-1 text-center max-w-[300px]"
               >
-                There are no payloads requiring your explicit authorization
-                currently mapped under your account.
+                There are no relevant payments currently available in this view.
               </p>
             </div>
           {/each}
@@ -337,48 +365,14 @@
       </div>
     </div>
 
-    <!-- Pagination Controls
-    <div
-      class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pr-36 lg:pr-48"
-    >
-      <span class="text-[13px] font-medium text-slate-500">
-        Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(
-          currentPage * itemsPerPage,
-          filteredPayouts.length
-        )} of {filteredPayouts.length} entries
-      </span>
-      <div class="flex items-center gap-2 relative z-10">
-        <button
-          disabled={currentPage === 1}
-          onclick={() => (currentPage -= 1)}
-          class="flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-        >
-          Previous
-        </button>
-        <div
-          class="flex items-center justify-center px-4 h-9 bg-slate-50 rounded-lg border border-slate-100 text-[13px] font-semibold text-slate-700"
-        >
-          Page {currentPage} of {totalPages}
-        </div>
-        <button
-          disabled={currentPage === totalPages}
-          onclick={() => (currentPage += 1)}
-          class="flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-        >
-          Next
-        </button>
-      </div>
-    </div>
-    -->
-
-    <!-- Floating Approve Button -->
+    <!-- Floating Action Button -->
     <div class="absolute bottom-8 right-8 lg:bottom-12 lg:right-12">
       <button
         onclick={handleApprove}
         disabled={selectedPayoutIds.length === 0}
         class="bg-[#6e56cf] hover:bg-[#5a46aa] text-white px-8 py-3 rounded-xl text-[14px] font-semibold shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Approve
+        {isInternalAdmin ? 'Redeem Selected' : 'Approve'}
       </button>
     </div>
 
@@ -394,7 +388,7 @@
           onclick={(e) => e.stopPropagation()}
         >
           <h2 class="text-[17px] font-semibold text-[#3b2b73] mb-6 text-center">
-            All Payments Approved
+            {isInternalAdmin ? 'All Payments Redeemed' : 'All Payments Approved'}
           </h2>
           <button
             class="w-full py-2.5 rounded-lg bg-[#5b4897] text-white text-[13px] font-semibold shadow-sm hover:bg-[#433177] transition-colors cursor-pointer"

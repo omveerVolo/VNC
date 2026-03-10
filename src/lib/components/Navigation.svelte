@@ -214,7 +214,7 @@
                     }}
                     class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
                   >
-                    Approval Payments
+                    Approved Payments
                   </a>
                   <a
                     href="/payouts/redeemed"

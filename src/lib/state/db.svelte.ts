@@ -56,9 +56,12 @@ export function approvePayerPayout(payoutId: string) {
 }
 
 export function createPayout(amount: string, programId: string, payee: string) {
-  const cleanAmount = amount.replace(/,/g, '');
+  // Remove currency symbol and commas before parsing
+  const cleanAmount = amount.replace(/[₹,]/g, '');
   const amountNumber = parseInt(cleanAmount, 10);
-  const initialStatus = "Ready to redeem";
+  
+  // Apply threshold logic: payouts > 51k require approval
+  const initialStatus = amountNumber > 51000 ? "Pending" : "Ready to redeem";
 
   // Look up the actual payee ID by matching the name or businessName robustly
   const cleanPayee = payee.trim().toLowerCase();

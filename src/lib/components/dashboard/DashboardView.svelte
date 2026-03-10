@@ -31,7 +31,9 @@
   let accessiblePrograms = $derived(
     activeUser?.role === "payer"
       ? dbStore.programs.filter((p: any) => p.payerId === activeUser?.id)
-      : dbStore.programs.filter((p: any) =>
+      : (activeUser?.role === "admin" && !authState.isAdminView)
+        ? dbStore.programs
+        : dbStore.programs.filter((p: any) =>
           p.enrolledPayees.includes(activeUser?.id || "")
         )
   );
@@ -50,21 +52,25 @@
       )
       .filter((p: any) => {
         const authMatch =
-          activeUser?.role === "payee"
-            ? p.userId === activeUser?.id
-            : accessiblePrograms.some((prog: any) => prog.id === p.programId);
+          (activeUser?.role === "admin" && !authState.isAdminView)
+            ? true
+            : activeUser?.role === "payee"
+              ? p.userId === activeUser?.id
+              : accessiblePrograms.some((prog: any) => prog.id === p.programId);
         if (!authMatch) return false;
 
         const statusMatch =
-          activeUser?.role === "payee"
-            ? p.status === "Settled" || p.status === "Redeemed"
-            : p.status === "Ready to redeem" || p.status === "Redeemed";
+          (activeUser?.role === "admin" && !authState.isAdminView)
+            ? p.status === "Ready to redeem"
+            : activeUser?.role === "payee"
+              ? p.status === "Settled" || p.status === "Redeemed"
+              : p.status === "Ready to redeem" || p.status === "Redeemed";
 
         // Program filter
         let programMatch = true;
         if (programFilter !== "All Program") {
           // Find the program ID for the selected name
-          const selectedProg = accessiblePrograms.find(
+          const selectedProg = dbStore.programs.find(
             (prog: any) => prog.name === programFilter
           );
           if (selectedProg) {
@@ -118,7 +124,9 @@
       const isAuthorized =
         activeUser?.role === "payer"
           ? accessiblePrograms.some((prog: any) => prog.id === p.programId)
-          : p.userId === activeUser?.id;
+          : (activeUser?.role === "admin" && !authState.isAdminView)
+            ? true
+            : p.userId === activeUser?.id;
       return isRedeemed && isAuthorized;
     }).length,
     totalPrograms: accessiblePrograms.length
@@ -131,10 +139,10 @@
     }, 0),
     // Only payee needs to total pending and settled explicitly like this here
     newPayouts: dbStore.payouts.filter(
-      (p: any) => p.userId === activeUser?.id && p.status === "Ready to redeem"
+      (p: any) => ((activeUser?.role === "admin" && !authState.isAdminView) || p.userId === activeUser?.id) && p.status === "Ready to redeem"
     ).length,
     settledPayouts: dbStore.payouts.filter(
-      (p: any) => p.userId === activeUser?.id && p.status === "Settled"
+      (p: any) => ((activeUser?.role === "admin" && !authState.isAdminView) || p.userId === activeUser?.id) && p.status === "Settled"
     ).length,
     activePayers:
       new Set(accessiblePrograms.map((p: any) => p.payerId)).size || 0
@@ -149,7 +157,7 @@
     let totalAll = 0;
 
     dbStore.payouts.forEach((p: any) => {
-      if (p.userId === activeUser?.id) {
+      if ((activeUser?.role === "admin" && !authState.isAdminView) || p.userId === activeUser?.id) {
         const amt = parseInt(String(p.amount).replace(/[^0-9]/g, "")) || 0;
         payerTotals[p.providerName] = (payerTotals[p.providerName] || 0) + amt;
         totalAll += amt;
@@ -282,11 +290,18 @@
           <!-- ======================= -->
           <!-- PAYEE DASHBOARD CONTENT -->
           <!-- ======================= -->
-        {:else if activeUser?.role === "payee"}
+        {:else if activeUser?.role === "payee" || (activeUser?.role === "admin" && !authState.isAdminView)}
           <!-- Payee Filters Row -->
           <div
             class="mb-6 flex w-full flex-wrap items-center justify-start gap-4"
           >
+            <div class="w-[180px] relative">
+              <CustomSelect
+                id="programFilterAdmin"
+                bind:value={programFilter}
+                options={programOptions}
+              />
+            </div>
             <div class="w-[160px] relative">
               <CustomSelect
                 id="timeFilterPayee"
@@ -321,8 +336,8 @@
               width="w-full lg:w-[20%]"
             />
             <MetricCard
-              title="Active Payers"
-              value={payeeMetrics.activePayers}
+              title={activeUser?.role === "admin" ? "Total Programs" : "Active Payers"}
+              value={activeUser?.role === "admin" ? accessiblePrograms.length : payeeMetrics.activePayers}
               trend="+1"
               trendUp={true}
               width="w-full lg:w-[20%]"

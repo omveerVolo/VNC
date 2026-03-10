@@ -45,12 +45,13 @@
           new Date(b.date).getTime() - new Date(a.date).getTime()
       )
       .filter((p: any) => {
-        // Payees see approved funds; Payers see funds they have generated
-        return activeUser?.role === "payee"
-          ? p.status === "Ready to redeem"
-          : true;
+        // Only show payouts ready to redeem in this view
+        return p.status === "Ready to redeem";
       })
       .filter((p: any) => {
+        // Admin should not see payouts here anymore, they have their own "Approved Payments" page
+        if (activeUser?.role === "admin") return false;
+
         if (activeUser?.role === "payee") {
           return p.userId === activeUser.id;
         } else {
@@ -252,18 +253,10 @@
               <div
                 class="col-span-1 flex items-center justify-end whitespace-nowrap"
               >
-                {#if payout.status === "Ready to redeem" && !authState.isAdminView}
+                {#if payout.status === "Ready to redeem"}
                   <button
                     class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-28 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm border border-transparent"
                     onclick={() => handleRedeemClick(payout)}
-                  >
-                    <Download class="h-3.5 w-3.5" />
-                    Redeem
-                  </button>
-                {:else if payout.status === "Ready to redeem" && authState.isAdminView}
-                  <button
-                    disabled
-                    class="bg-slate-100 text-slate-400 w-28 py-1.5 rounded-md text-[13px] font-medium flex items-center justify-center gap-1.5 shadow-sm border border-slate-200 cursor-not-allowed"
                   >
                     <Download class="h-3.5 w-3.5" />
                     Redeem

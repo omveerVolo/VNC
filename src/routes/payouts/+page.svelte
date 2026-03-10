@@ -7,6 +7,8 @@
     // Redirects Payer and Payees to their respective default payout grids to avoid the 404
     if (authState.user?.role === "payee") {
       goto("/payouts/new", { replaceState: true });
+    } else if (authState.user?.role === "admin") {
+      goto("/payouts/approvals", { replaceState: true });
     } else {
       goto("/payouts/approvals", { replaceState: true });
     }
