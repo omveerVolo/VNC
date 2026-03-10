@@ -22,12 +22,17 @@
     return "₹" + val.toLocaleString("en-IN");
   };
 
+  // Resolve the target token context explicitly mapping Admin logic vs standard access
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
   // Combine active user's accessible programs for the filter
   let accessiblePrograms = $derived(
-    authState.user?.role === "payer"
-      ? dbStore.programs.filter((p: any) => p.payerId === authState.user?.id)
+    activeUser?.role === "payer"
+      ? dbStore.programs.filter((p: any) => p.payerId === activeUser?.id)
       : dbStore.programs.filter((p: any) =>
-          p.enrolledPayees.includes(authState.user?.id || "")
+          p.enrolledPayees.includes(activeUser?.id || "")
         )
   );
 
@@ -45,16 +50,14 @@
       )
       .filter((p: any) => {
         const authMatch =
-          authState.user?.role === "payee"
-            ? p.userId === authState.user?.id
+          activeUser?.role === "payee"
+            ? p.userId === activeUser?.id
             : accessiblePrograms.some((prog: any) => prog.id === p.programId);
         if (!authMatch) return false;
 
         const statusMatch =
-          authState.user?.role === "payee"
-            ? p.status === "Ready to redeem" ||
-              p.status === "Settled" ||
-              p.status === "Redeemed"
+          activeUser?.role === "payee"
+            ? p.status === "Settled" || p.status === "Redeemed"
             : p.status === "Ready to redeem" || p.status === "Redeemed";
 
         // Program filter
@@ -71,18 +74,31 @@
 
         return statusMatch && programMatch;
       })
-      .map((p: any) => ({
-        dbId: p.id,
-        id: p.claimNo,
-        name: p.providerName,
-        provider: p.providerName, // Fallback for the modal
-        category: "Medical",
-        amount: "₹" + p.amount,
-        payableAmount: "₹" + p.amount, // Fallback for the modal
-        status: p.status,
-        createdBy: "System",
-        createdAt: p.date
-      }))
+      .map((p: any) => {
+        // Find the payer name from the program
+        const program = dbStore.programs.find(
+          (prog: any) => prog.id === p.programId
+        );
+        const payerUser = dbStore.users.find(
+          (u: any) => u.id === program?.payerId
+        );
+        const payerName = payerUser
+          ? payerUser.businessName || payerUser.name
+          : "Unknown Payer";
+
+        return {
+          dbId: p.id,
+          id: p.claimNo,
+          name: activeUser?.role === "payee" ? payerName : p.providerName,
+          provider: activeUser?.role === "payee" ? payerName : p.providerName, // Fallback for the modal
+          category: "Medical",
+          amount: "₹" + p.amount,
+          payableAmount: "₹" + p.amount, // Fallback for the modal
+          status: p.status,
+          createdBy: "System",
+          createdAt: p.date
+        };
+      })
       .slice(0, 7)
   );
 
@@ -93,16 +109,16 @@
       return sum + amt;
     }, 0),
     activePayee:
-      authState.user?.role === "payer"
+      activeUser?.role === "payer"
         ? new Set(accessiblePrograms.flatMap((p: any) => p.enrolledPayees))
             .size || 0
         : 3,
     totalCardsRedeemed: dbStore.payouts.filter((p: any) => {
       const isRedeemed = p.status === "Redeemed";
       const isAuthorized =
-        authState.user?.role === "payer"
+        activeUser?.role === "payer"
           ? accessiblePrograms.some((prog: any) => prog.id === p.programId)
-          : p.userId === authState.user?.id;
+          : p.userId === activeUser?.id;
       return isRedeemed && isAuthorized;
     }).length,
     totalPrograms: accessiblePrograms.length
@@ -113,27 +129,27 @@
       const amt = parseInt(p.amount.replace(/[^0-9]/g, "")) || 0;
       return sum + amt;
     }, 0),
+    // Only payee needs to total pending and settled explicitly like this here
     newPayouts: dbStore.payouts.filter(
-      (p: any) =>
-        p.userId === authState.user?.id &&
-        (p.status === "Pending Payer" || p.status === "Ready to redeem")
+      (p: any) => p.userId === activeUser?.id && p.status === "Ready to redeem"
     ).length,
     settledPayouts: dbStore.payouts.filter(
-      (p: any) => p.userId === authState.user?.id && p.status === "Settled"
+      (p: any) => p.userId === activeUser?.id && p.status === "Settled"
     ).length,
     activePayers:
       new Set(accessiblePrograms.map((p: any) => p.payerId)).size || 0
   });
 
+  // Top payers metric (only for payee view)
   let topPayers = $derived.by(() => {
-    if (authState.user?.role !== "payee") return [];
+    if (activeUser?.role === "payer") return [];
 
     // Group payouts by providerName
     const payerTotals: Record<string, number> = {};
     let totalAll = 0;
 
     dbStore.payouts.forEach((p: any) => {
-      if (p.userId === authState.user?.id) {
+      if (p.userId === activeUser?.id) {
         const amt = parseInt(String(p.amount).replace(/[^0-9]/g, "")) || 0;
         payerTotals[p.providerName] = (payerTotals[p.providerName] || 0) + amt;
         totalAll += amt;
@@ -153,11 +169,11 @@
 </script>
 
 <div
-  class="flex w-full flex-col min-h-screen {authState.user?.role === 'payer'
+  class="flex w-full flex-col min-h-screen {activeUser?.role === 'payer'
     ? 'bg-white'
     : 'bg-slate-50'} relative"
 >
-  {#if authState.user?.role === "payee" && !authState.user?.hasAcceptedTerms}
+  {#if activeUser?.role === "payee" && !activeUser?.hasAcceptedTerms}
     <TermsModal />
   {/if}
 
@@ -187,7 +203,7 @@
         <!-- ======================= -->
         <!-- PAYER DASHBOARD CONTENT -->
         <!-- ======================= -->
-        {#if authState.user?.role === "payer"}
+        {#if activeUser?.role === "payer"}
           <!-- Filters & Actions Row -->
           <div
             class="mb-6 flex w-full flex-wrap items-center justify-between gap-4"
@@ -266,7 +282,7 @@
           <!-- ======================= -->
           <!-- PAYEE DASHBOARD CONTENT -->
           <!-- ======================= -->
-        {:else if authState.user?.role === "payee"}
+        {:else if activeUser?.role === "payee"}
           <!-- Payee Filters Row -->
           <div
             class="mb-6 flex w-full flex-wrap items-center justify-start gap-4"

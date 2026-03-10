@@ -58,13 +58,20 @@ export function approvePayerPayout(payoutId: string) {
 export function createPayout(amount: string, programId: string, payee: string) {
   const cleanAmount = amount.replace(/,/g, '');
   const amountNumber = parseInt(cleanAmount, 10);
-  const initialStatus = amountNumber > 50000 ? "Pending Payer" : "Ready to redeem";
+  const initialStatus = "Ready to redeem";
 
-  // Look up the actual payee ID by matching the name or businessName
+  // Look up the actual payee ID by matching the name or businessName robustly
+  const cleanPayee = payee.trim().toLowerCase();
   const targetUser = dbStore.users.find(
-    (u: any) => u.name === payee || u.businessName === payee
+    (u: any) => 
+      (u.name && u.name.toLowerCase() === cleanPayee) || 
+      (u.businessName && u.businessName.toLowerCase() === cleanPayee) ||
+      (u.email && u.email.toLowerCase() === cleanPayee)
   );
-  const targetId = targetUser ? targetUser.id : "usr_payee_01";
+  
+  // If we can't strictly match the UI name to a DB user, we create a phantom ID tied to the string name
+  // so it at least maps correctly if they register later, rather than dumping it into usr_payee_01 statically.
+  const targetId = targetUser ? targetUser.id : `usr_pending_${cleanPayee.replace(/[^a-z0-9]/g, '')}`;
 
   const newPayout = {
     id: `clm_${Math.floor(Math.random() * 10000)}`,
@@ -115,7 +122,8 @@ export function createProgram(name: string, type: string, category: string, paye
     createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     createdBy: authState.user.name || "System",
     payoutsReceived: 0,
-    enrolledPayees: targetId ? [targetId] : [] // Store ID instead of email
+    enrolledPayees: [],
+    invitedPayees: targetId ? [targetId] : [] // Store ID instead of email for pending hook
   };
   
   // Also push a demo notification allowing the Payer to see they made a program
@@ -151,7 +159,20 @@ export function acceptInvitation(notificationId: string, programId: string, paye
   // Add payee to program
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === programId && !p.enrolledPayees.includes(payeeId)) {
-      return { ...p, enrolledPayees: [...p.enrolledPayees, payeeId] };
+      const updatedInvited = (p.invitedPayees || []).filter((id: string) => id !== payeeId);
+      return { 
+        ...p, 
+        enrolledPayees: [...p.enrolledPayees, payeeId],
+        invitedPayees: updatedInvited
+      };
+    }
+    return p;
+  });
+
+  // Reconcile pending payouts assigned to phantom IDs for this program
+  dbStore.payouts = dbStore.payouts.map((p: any) => {
+    if (p.programId === programId && String(p.userId).startsWith("usr_pending_")) {
+      return { ...p, userId: payeeId };
     }
     return p;
   });

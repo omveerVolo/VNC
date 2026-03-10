@@ -1,6 +1,7 @@
 <script lang="ts">
   // Example data model built from the reference image + new requested fields
   import { CheckCircle2, Clock, Download, ArrowRight } from "lucide-svelte";
+  import { authState } from "$lib/state/auth.svelte.js";
 
   let { payouts = [], isPayee = false, onredeem = () => {} } = $props();
 </script>
@@ -61,10 +62,19 @@
         <!-- Col 5: Actions / Status -->
         <div class="w-32 flex justify-end lg:justify-start">
           {#if isPayee}
-            {#if payout.status === "Ready to redeem" || payout.status === "Ready to Redeem"}
+            {#if (payout.status === "Ready to redeem" || payout.status === "Ready to Redeem") && !authState.isAdminView}
               <button
                 class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-full py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 border border-transparent"
                 onclick={() => onredeem(payout)}
+              >
+                <Download class="h-3.5 w-3.5" />
+                Redeem
+              </button>
+            {:else if (payout.status === "Ready to redeem" || payout.status === "Ready to Redeem") && authState.isAdminView}
+              <button
+                disabled
+                class="bg-slate-100 text-slate-400 w-full py-1.5 rounded-md text-[13px] font-medium flex items-center justify-center gap-1.5 border border-slate-200 cursor-not-allowed"
+                title="Action disabled in Admin View"
               >
                 <Download class="h-3.5 w-3.5" />
                 Redeem

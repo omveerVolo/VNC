@@ -1,6 +1,13 @@
 {
   "users": [
     {
+      "id": "usr_admin_01",
+      "name": "Platform Administrator",
+      "email": "admin@hdfc.com",
+      "password": "password123",
+      "role": "admin"
+    },
+    {
       "id": "usr_payer_01",
       "name": "Apollo Hospitals",
       "email": "apollo@payer.com",
@@ -17,7 +24,7 @@
     {
       "id": "usr_payee_01",
       "name": "OxygenTanks",
-      "email": "oxy@payee.com",
+      "email": "classic@payee.com",
       "password": "password123",
       "role": "payee",
       "hasAcceptedTerms": true,
@@ -27,7 +34,7 @@
     {
       "id": "usr_payee_02",
       "name": "Fresh Clinic",
-      "email": "fresh@payee.com",
+      "email": "new@payee.com",
       "password": "password123",
       "role": "payee",
       "hasAcceptedTerms": false,
@@ -36,12 +43,12 @@
     },
     {
       "id": "usr_payee_03",
-      "name": "Quick Transport",
+      "name": "Ryze Insurance",
       "email": "vanilla@payee.com",
       "password": "password123",
       "role": "payee",
       "hasAcceptedTerms": false,
-      "businessName": "Quick Transport",
+      "businessName": "RyzenInsurance",
       "category": "Insurance"
     }
   ],
@@ -151,7 +158,7 @@
       "claimNo": "VADE0B778899",
       "payoutId": "ACME00998877",
       "amount": "55,000",
-      "status": "Pending Payer"
+      "status": "Pending"
     },
     {
       "id": "clm_pending_02",
@@ -163,7 +170,7 @@
       "claimNo": "VADE0B001122",
       "payoutId": "ACME33445566",
       "amount": "62,300",
-      "status": "Pending Payer"
+      "status": "Pending"
     }
   ]
 }

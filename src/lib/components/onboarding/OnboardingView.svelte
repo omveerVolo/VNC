@@ -6,7 +6,8 @@
     Building2,
     ArrowLeft,
     User,
-    Shield
+    Shield,
+    Loader2
   } from "lucide-svelte";
   import { createEventDispatcher } from "svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
@@ -52,13 +53,28 @@
 
   // Used for UI feedback
   let addedPayees = $state<string[]>([]);
+  let isInviting = $state(false);
+  let showInvitationSuccess = $state(false);
 
-  function handleManualAdd() {
+  async function handleManualAdd() {
     if (manualEmail && manualEmail.includes("@")) {
+      isInviting = true;
+      showInvitationSuccess = false;
+
+      // Simulate invitation spin
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       addedPayees = [...addedPayees, manualEmail];
       // Sync to final submission pipeline
       payeeEmail = manualEmail;
       manualEmail = "";
+      isInviting = false;
+      showInvitationSuccess = true;
+
+      // Hide success message after a few seconds
+      setTimeout(() => {
+        showInvitationSuccess = false;
+      }, 3000);
     }
   }
 
@@ -490,6 +506,12 @@
                     >
                       5 %
                     </div>
+                  {:else if deductionSetting === setting && setting === "Standard Deduction %"}
+                    <div
+                      class="text-[10px] bg-white border border-slate-200 px-3 py-1 rounded w-3/4 text-center font-semibold text-slate-700 shadow-sm"
+                    >
+                      10 %
+                    </div>
                   {/if}
                 </div>
               </button>
@@ -499,7 +521,76 @@
 
         <div class="mt-10 flex flex-col gap-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-            <!-- Block 1: Recommend Payee System -->
+            <!-- Block 1: Add Manual Payee (Swapped logic/title) -->
+            <div
+              class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full relative"
+            >
+              <div class="flex gap-4">
+                <div
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white shadow-sm"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="text-slate-700"
+                  >
+                    <rect
+                      width="20"
+                      height="16"
+                      x="2"
+                      y="4"
+                      rx="2"
+                    /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                </div>
+                <div class="flex flex-col">
+                  <span class="font-semibold text-slate-800 text-[14px]"
+                    >Recommend Payees</span
+                  >
+                  <span class="text-[11px] font-medium text-slate-500 mt-0.5"
+                    >Select from our trusted network</span
+                  >
+                </div>
+              </div>
+
+              <div class="mt-2 flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                  <input
+                    type="email"
+                    bind:value={manualEmail}
+                    placeholder="Enter email address"
+                    class="h-10 flex-1 rounded-xl border border-slate-200 px-3 text-[13px] outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
+                  />
+                  <button
+                    onclick={handleManualAdd}
+                    disabled={isInviting}
+                    class="h-10 px-5 rounded-xl bg-[#7d326f] text-white text-[13px] font-semibold hover:bg-[#68285c] cursor-pointer shadow-sm transition-all whitespace-nowrap flex items-center justify-center min-w-[80px]"
+                  >
+                    {#if isInviting}
+                      <Loader2 class="h-4 w-4 animate-spin" />
+                    {:else}
+                      Add
+                    {/if}
+                  </button>
+                </div>
+                {#if showInvitationSuccess}
+                  <p
+                    class="text-[11px] font-semibold text-[#7d326f] animate-in fade-in slide-in-from-top-1 px-1"
+                  >
+                    ✓ invitation sent
+                  </p>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Block 2: Recommend Payee System (Swapped logic/title) -->
             <div
               class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full"
             >
@@ -532,10 +623,10 @@
                 </div>
                 <div class="flex flex-col">
                   <span class="font-semibold text-slate-800 text-[14px]"
-                    >Recommend Payees</span
+                    >Add Payee</span
                   >
                   <span class="text-[11px] font-medium text-slate-500 mt-0.5"
-                    >Select from our trusted network</span
+                    >Add an existing user to the program</span
                   >
                 </div>
               </div>
@@ -550,61 +641,6 @@
                     "Narayana Health"
                   ]}
                 />
-              </div>
-            </div>
-
-            <!-- Block 2: Add Manual Payee -->
-            <div
-              class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full"
-            >
-              <div class="flex gap-4">
-                <div
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white shadow-sm"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-slate-700"
-                  >
-                    <rect
-                      width="20"
-                      height="16"
-                      x="2"
-                      y="4"
-                      rx="2"
-                    /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                </div>
-                <div class="flex flex-col">
-                  <span class="font-semibold text-slate-800 text-[14px]"
-                    >Add Payee (Email)</span
-                  >
-                  <span class="text-[11px] font-medium text-slate-500 mt-0.5"
-                    >Invite someone off-platform</span
-                  >
-                </div>
-              </div>
-
-              <div class="mt-2 flex items-center gap-2">
-                <input
-                  type="email"
-                  bind:value={manualEmail}
-                  placeholder="Enter email address"
-                  class="h-10 flex-1 rounded-xl border border-slate-200 px-3 text-[13px] outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
-                />
-                <button
-                  onclick={handleManualAdd}
-                  class="h-10 px-5 rounded-xl bg-slate-800 text-white text-[13px] font-semibold hover:bg-slate-700 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
-                >
-                  Add
-                </button>
               </div>
             </div>
           </div>

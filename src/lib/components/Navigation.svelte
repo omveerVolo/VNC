@@ -1,7 +1,8 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { authState, logout } from "$lib/state/auth.svelte.js";
+  import { authState, logout, stopViewing } from "$lib/state/auth.svelte.js";
+  import { ShieldAlert } from "lucide-svelte";
   import {
     Home,
     CreditCard,
@@ -33,6 +34,10 @@
       e.preventDefault();
       logout();
       goto("/login");
+    } else if (path === "/" && authState.isAdminView) {
+      e.preventDefault();
+      stopViewing();
+      goto("/");
     }
     closeMobileMenu();
   }
@@ -81,10 +86,20 @@
 <div
   class="md:hidden fixed top-0 left-0 w-full h-16 bg-[#1f1747] border-b border-[#1a133b] z-40 flex items-center justify-between px-4 text-white shadow-md"
 >
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <img
     src="/logo.png"
     alt="HDFC Bank Logo"
-    class="h-12 w-auto object-contain"
+    class="h-12 w-auto object-contain cursor-pointer"
+    onclick={() => {
+      if (authState.isAdminView) {
+        stopViewing();
+        goto("/");
+      } else {
+        goto("/");
+      }
+    }}
   />
   <button
     onclick={toggleMobileMenu}
@@ -112,7 +127,19 @@
 >
   <div class="flex w-full flex-col items-center">
     <!-- Logo -->
-    <div class="pb-6 flex cursor-pointer flex-col items-center justify-center">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="pb-6 flex cursor-pointer flex-col items-center justify-center"
+      onclick={() => {
+        if (authState.isAdminView) {
+          stopViewing();
+          goto("/");
+        } else {
+          goto("/");
+        }
+      }}
+    >
       <img
         src="/logo.png"
         alt="HDFC Bank Logo"
@@ -168,8 +195,8 @@
             </span>
           </a>
 
-          <!-- Payouts Submenu Overlay (Payee Only) -->
-          {#if item.path === "/payouts" && authState.user?.role === "payee"}
+          <!-- Payouts Submenu Overlay (Payee Only or Admin Impersonating Payee) -->
+          {#if item.path === "/payouts" && (authState.isAdminView ? authState.viewingAs?.role : authState.user?.role) === "payee"}
             <div
               class="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl w-56 z-50 flex flex-col pointer-events-auto border border-slate-100 overflow-visible transition-all duration-200 {hoverStates.payouts
                 ? 'opacity-100 visible'
@@ -177,52 +204,87 @@
             >
               <div class="flex flex-col p-2 space-y-1 relative">
                 <!-- Dropdown options -->
-                <a
-                  href="/payouts/new"
-                  onclick={(e) => {
-                    hoverStates.payouts = false;
-                    closeMobileMenu();
-                  }}
-                  class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
-                >
-                  New Payout
-                </a>
-                <a
-                  href="/payouts/redeemed"
-                  onclick={(e) => {
-                    hoverStates.payouts = false;
-                    closeMobileMenu();
-                  }}
-                  class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
-                >
-                  Redeemed Cards
-                </a>
-                <a
-                  href="/payouts/settled"
-                  onclick={(e) => {
-                    hoverStates.payouts = false;
-                    closeMobileMenu();
-                  }}
-                  class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
-                >
-                  Settled Payments
-                </a>
-                <a
-                  href="/payouts/approvals"
-                  onclick={(e) => {
-                    hoverStates.payouts = false;
-                    closeMobileMenu();
-                  }}
-                  class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
-                >
-                  Approval Payments
-                </a>
+                <!-- Admin Read-Only Restructured Dropdown -->
+                {#if authState.isAdminView}
+                  <a
+                    href="/payouts/approvals"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    Approval Payments
+                  </a>
+                  <a
+                    href="/payouts/redeemed"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    Redeemed Cards
+                  </a>
+                  <a
+                    href="/payouts/settled"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    Settled Payments
+                  </a>
+                {:else}
+                  <!-- Standard Payee Dropdown -->
+                  <a
+                    href="/payouts/new"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    New Payout
+                  </a>
+                  <a
+                    href="/payouts/redeemed"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    Redeemed Cards
+                  </a>
+                  <a
+                    href="/payouts/settled"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    Settled Payments
+                  </a>
+                  <a
+                    href="/payouts/approvals"
+                    onclick={() => {
+                      hoverStates.payouts = false;
+                      closeMobileMenu();
+                    }}
+                    class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
+                  >
+                    Approval Payments
+                  </a>
+                {/if}
               </div>
             </div>
           {/if}
 
-          <!-- Payouts Submenu Overlay (Payer Only) -->
-          {#if item.path === "/payouts" && authState.user?.role === "payer"}
+          <!-- Payouts Submenu Overlay (Payer Only or Admin Impersonating Payer) -->
+          {#if item.path === "/payouts" && (authState.isAdminView ? authState.viewingAs?.role : authState.user?.role) === "payer"}
             <div
               class="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl w-56 z-50 flex flex-col pointer-events-auto border border-slate-100 overflow-visible transition-all duration-200 {hoverStates.payouts
                 ? 'opacity-100 visible'
@@ -353,9 +415,15 @@
                 {authState.user.email}
               </div>
               <div
-                class="text-[10px] text-slate-500 font-mono mt-1.5 pt-1.5 border-t border-slate-700/50 truncate flex items-center justify-between"
+                class="text-[10px] text-slate-500 font-mono mt-1.5 pt-1.5 border-t border-slate-700/50 truncate flex flex-col gap-1"
               >
                 <span>ID: {authState.user.id}</span>
+                {#if authState.isAdminView}
+                  <span
+                    class="text-rose-400/80 uppercase tracking-widest font-black text-[9px] mt-0.5"
+                    >Admin Impersonating</span
+                  >
+                {/if}
               </div>
 
               <!-- Role Switcher -->

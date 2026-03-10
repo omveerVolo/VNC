@@ -1,11 +1,14 @@
 <script lang="ts">
   import { authState } from "$lib/state/auth.svelte.js";
 
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
   let accepted = $state(true);
 
   function handleAccept() {
-    if (accepted && authState.user) {
-      authState.user.hasAcceptedTerms = true;
+    if (accepted && activeUser) {
+      activeUser.hasAcceptedTerms = true;
     }
   }
 </script>

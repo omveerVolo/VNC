@@ -4,6 +4,11 @@
   import { dbStore } from "$lib/state/db.svelte.js";
   import { authState } from "$lib/state/auth.svelte.js";
 
+  // Derive target identity securely
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
   let searchQuery = $state("");
 
   let currentPage = $state(1);
@@ -21,7 +26,7 @@
     dbStore.payouts
       .filter((p: any) => p.status === "Redeemed")
       .filter((p: any) =>
-        authState.user?.role === "payee" ? p.userId === authState.user.id : true
+        activeUser?.role === "payee" ? p.userId === activeUser.id : true
       )
       .filter((p: any) => {
         if (!searchQuery) return true;
@@ -31,15 +36,28 @@
           p.claimNo.toLowerCase().includes(q)
         );
       })
-      .map((p: any) => ({
-        id: p.claimNo,
-        program: "Medical Payouts 2026",
-        provider: p.providerName,
-        approvedAmount: `₹${p.amount}`,
-        gst: "₹1,250",
-        payableAmount: `₹${p.amount}`,
-        status: p.status
-      }))
+      .map((p: any) => {
+        // Find the payer name from the program
+        const program = dbStore.programs.find(
+          (prog: any) => prog.id === p.programId
+        );
+        const payerUser = dbStore.users.find(
+          (u: any) => u.id === program?.payerId
+        );
+        const payerName = payerUser
+          ? payerUser.businessName || payerUser.name
+          : "Unknown Payer";
+
+        return {
+          id: p.claimNo,
+          program: program?.name || "Medical Payouts 2026",
+          provider: activeUser?.role === "payee" ? payerName : p.providerName,
+          approvedAmount: `₹${p.amount}`,
+          gst: "₹1,250",
+          payableAmount: `₹${p.amount}`,
+          status: p.status
+        };
+      })
   );
 
   let paginatedPayouts = $derived(
@@ -202,7 +220,7 @@
       </div>
     </div>
 
-    <!-- Pagination Controls -->
+    <!-- Pagination Controls
     <div
       class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6"
     >
@@ -234,5 +252,6 @@
         </button>
       </div>
     </div>
+    -->
   </div>
 </div>

@@ -6,6 +6,11 @@
   import { authState } from "$lib/state/auth.svelte.js";
   import { page } from "$app/stores";
 
+  // Derive target identity securely
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
   let searchQuery = $state("");
   let selectedPayout = $state<any>(null);
 
@@ -39,10 +44,23 @@
         (a: any, b: any) =>
           new Date(b.date).getTime() - new Date(a.date).getTime()
       )
-      .filter((p: any) => p.status === "Ready to redeem")
-      .filter((p: any) =>
-        authState.user?.role === "payee" ? p.userId === authState.user.id : true
-      )
+      .filter((p: any) => {
+        // Payees see approved funds; Payers see funds they have generated
+        return activeUser?.role === "payee"
+          ? p.status === "Ready to redeem"
+          : true;
+      })
+      .filter((p: any) => {
+        if (activeUser?.role === "payee") {
+          return p.userId === activeUser.id;
+        } else {
+          // Payers only see payouts tied to programs they explicitly own
+          const matchingProgram = dbStore.programs.find(
+            (prog: any) => prog.id === p.programId
+          );
+          return matchingProgram && matchingProgram.payerId === activeUser?.id;
+        }
+      })
       .filter((p: any) => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
@@ -51,18 +69,31 @@
           p.claimNo.toLowerCase().includes(q)
         );
       })
-      .map((p: any) => ({
-        dbId: p.id,
-        id: p.claimNo,
-        program: "Medical Payouts 2026",
-        provider: p.providerName,
-        patientName: p.patientName,
-        createdAt: p.date,
-        approvedAmount: `₹${p.amount}`,
-        gst: "₹1,250",
-        payableAmount: `₹${p.amount}`,
-        status: p.status
-      }))
+      .map((p: any) => {
+        // Find the payer name from the program
+        const program = dbStore.programs.find(
+          (prog: any) => prog.id === p.programId
+        );
+        const payerUser = dbStore.users.find(
+          (u: any) => u.id === program?.payerId
+        );
+        const payerName = payerUser
+          ? payerUser.businessName || payerUser.name
+          : "Unknown Payer";
+
+        return {
+          dbId: p.id,
+          id: p.claimNo,
+          program: program?.name || "Medical Payouts 2026",
+          provider: activeUser?.role === "payee" ? payerName : p.providerName,
+          patientName: p.patientName,
+          createdAt: p.date,
+          approvedAmount: `₹${p.amount}`,
+          gst: "₹1,250",
+          payableAmount: `₹${p.amount}`,
+          status: p.status
+        };
+      })
   );
 
   let paginatedPayouts = $derived(
@@ -99,7 +130,6 @@
   }
 </script>
 
-```svelte
 <svelte:head>
   <title>Manage Claims - HDFC Bank</title>
 </svelte:head>
@@ -107,7 +137,6 @@
 <div
   class="flex h-full w-full flex-col p-8 lg:p-12 relative overflow-y-auto min-h-screen"
 >
-  <!-- Global Search Bar centered at top mimicking the wireframe -->
   <div class="absolute top-8 left-1/2 -translate-x-1/2 w-full max-w-lg z-10">
     <div
       class="flex h-12 w-full items-center overflow-hidden rounded-full border border-slate-200 bg-white px-2 shadow-sm transition-shadow"
@@ -223,10 +252,18 @@
               <div
                 class="col-span-1 flex items-center justify-end whitespace-nowrap"
               >
-                {#if payout.status === "Ready to redeem"}
+                {#if payout.status === "Ready to redeem" && !authState.isAdminView}
                   <button
                     class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-28 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm border border-transparent"
                     onclick={() => handleRedeemClick(payout)}
+                  >
+                    <Download class="h-3.5 w-3.5" />
+                    Redeem
+                  </button>
+                {:else if payout.status === "Ready to redeem" && authState.isAdminView}
+                  <button
+                    disabled
+                    class="bg-slate-100 text-slate-400 w-28 py-1.5 rounded-md text-[13px] font-medium flex items-center justify-center gap-1.5 shadow-sm border border-slate-200 cursor-not-allowed"
                   >
                     <Download class="h-3.5 w-3.5" />
                     Redeem
@@ -288,7 +325,7 @@
       </div>
     </div>
 
-    <!-- Pagination Controls -->
+    <!-- Pagination Controls
     <div
       class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6"
     >
@@ -320,6 +357,7 @@
         </button>
       </div>
     </div>
+    -->
   </div>
 
   {#if selectedPayout}

@@ -4,6 +4,11 @@
   import { dbStore, approvePayerPayout } from "$lib/state/db.svelte.js";
   import { authState } from "$lib/state/auth.svelte.js";
 
+  // Derive target identity securely
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
   let selectedPayoutIds = $state<string[]>([]);
 
   let searchQuery = $state("");
@@ -24,18 +29,16 @@
   let filteredPayouts = $derived(
     dbStore.payouts
       .filter((p: any) => {
-        if (p.status !== "Pending Payer") return false;
+        if (p.status !== "Pending") return false;
 
-        if (authState.user?.role === "payee") {
-          return p.userId === authState.user?.id;
+        if (activeUser?.role === "payee") {
+          return p.userId === activeUser?.id;
         } else {
           // Payer can only approve payouts strictly mapping into Programs they explicitly own
           const matchingProgram = dbStore.programs.find(
             (prog: any) => prog.id === p.programId
           );
-          return (
-            matchingProgram && matchingProgram.payerId === authState.user?.id
-          );
+          return matchingProgram && matchingProgram.payerId === activeUser?.id;
         }
       })
       .filter((p: any) => {
@@ -46,16 +49,29 @@
           p.claimNo.toLowerCase().includes(q)
         );
       })
-      .map((p: any) => ({
-        dbId: p.id, // Keep a reference to the global mutable ID
-        id: p.claimNo,
-        program: "Medical Payouts 2026",
-        payer: p.providerName,
-        approvedAmount: `₹${p.amount}`,
-        gst: "₹1,250",
-        payableAmount: `₹${p.amount}`,
-        status: p.status
-      }))
+      .map((p: any) => {
+        // Find the payer name from the program
+        const program = dbStore.programs.find(
+          (prog: any) => prog.id === p.programId
+        );
+        const payerUser = dbStore.users.find(
+          (u: any) => u.id === program?.payerId
+        );
+        const payerName = payerUser
+          ? payerUser.businessName || payerUser.name
+          : "Unknown Payer";
+
+        return {
+          dbId: p.id, // Keep a reference to the global mutable ID
+          id: p.claimNo,
+          program: program?.name || "Medical Payouts 2026",
+          payer: activeUser?.role === "payee" ? payerName : p.providerName,
+          approvedAmount: `₹${p.amount}`,
+          gst: "₹1,250",
+          payableAmount: `₹${p.amount}`,
+          status: p.status
+        };
+      })
   );
 
   let paginatedPayouts = $derived(
@@ -82,16 +98,15 @@
 
   function handleApprove() {
     if (selectedPayoutIds.length > 0) {
+      // Process approvals into the master database synchronously
+      for (const id of selectedPayoutIds) {
+        approvePayerPayout(id);
+      }
       showSuccessModal = true;
     }
   }
 
   function handleDone() {
-    // Process approvals into the master database
-    for (const id of selectedPayoutIds) {
-      approvePayerPayout(id);
-    }
-
     // Clear visual state
     selectedPayoutIds = [];
     isAllSelected = false;
@@ -322,7 +337,7 @@
       </div>
     </div>
 
-    <!-- Pagination Controls -->
+    <!-- Pagination Controls
     <div
       class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pr-36 lg:pr-48"
     >
@@ -354,6 +369,7 @@
         </button>
       </div>
     </div>
+    -->
 
     <!-- Floating Approve Button -->
     <div class="absolute bottom-8 right-8 lg:bottom-12 lg:right-12">

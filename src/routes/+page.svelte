@@ -8,6 +8,7 @@
 
   import DashboardView from "$lib/components/dashboard/DashboardView.svelte";
   import OnboardingView from "$lib/components/onboarding/OnboardingView.svelte";
+  import AdminJourney from "$lib/components/admin/AdminJourney.svelte";
 
   let isCheckingData = $state(true);
   let isCreatingProgram = $state(false);
@@ -77,15 +78,11 @@
     }}
     on:cancel={handleCancel}
   />
-{:else if authState.user?.role === "admin"}
-  <OnboardingView
-    initialStep={1}
-    on:complete={() => {
-      if (authState.user) authState.user.hasData = true;
-      handleCancel();
-    }}
-    on:cancel={handleCancel}
-  />
+{:else if authState.user?.role === "admin" && !authState.isAdminView}
+  <AdminJourney />
+{:else if authState.isAdminView}
+  <!-- Bypass all onboarding flows and strictly render the interactive Dashboard sandbox when Impersonating -->
+  <DashboardView on:createProgram={() => (isCreatingProgram = true)} />
 {:else if authState.user?.role === "payer" && !payerHasPrograms}
   <OnboardingView
     initialStep={2}

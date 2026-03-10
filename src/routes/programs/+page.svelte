@@ -5,16 +5,20 @@
   import { authState } from "$lib/state/auth.svelte.js";
   import { dbStore, cancelEnrollment } from "$lib/state/db.svelte.js";
 
+  // Derive target identity securely
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
   // Derive programs from global state, filtering for the current user's role mapping
   let programs = $derived(
     dbStore.programs.filter((p: any) => {
-      if (!authState.user) return false;
-      if (authState.user.role === "admin") return true;
-      if (authState.user.role === "payer")
-        return p.payerId === authState.user.id;
+      if (!activeUser) return false;
+      if (activeUser.role === "admin") return true;
+      if (activeUser.role === "payer") return p.payerId === activeUser.id;
       // Payees see programs they are enrolled in
       return (
-        p.enrolledPayees.includes(authState.user.id) ||
+        p.enrolledPayees.includes(activeUser.id) ||
         p.enrolledPayees.length === 0
       );
     })
@@ -22,9 +26,9 @@
 
   // Helper to count payouts for a specific user within a specific program
   const getPayoutCountForUser = (programId: string) => {
-    if (!authState.user?.id) return 0;
+    if (!activeUser?.id) return 0;
     return dbStore.payouts.filter(
-      (p: any) => p.programId === programId && p.userId === authState.user?.id
+      (p: any) => p.programId === programId && p.userId === activeUser?.id
     ).length;
   };
 
@@ -36,8 +40,8 @@
   let activeCancelId = $state<string | null>(null);
 
   function confirmCancel(id: string) {
-    if (authState.user?.id) {
-      cancelEnrollment(id, authState.user.id);
+    if (activeUser?.id) {
+      cancelEnrollment(id, activeUser.id);
     }
     activeCancelId = null;
   }
@@ -68,7 +72,7 @@
         <!-- Action Row -->
         <div class="mb-6 flex w-full">
           <!-- Navigates back to home to invoke onboarding explicitly. Hidden for payees -->
-          {#if authState.user?.role !== "payee"}
+          {#if activeUser?.role !== "payee"}
             <button
               onclick={() => goto("/?createProgram=true")}
               class="flex h-11 items-center justify-center rounded-xl border border-slate-800 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 cursor-pointer"
@@ -113,7 +117,7 @@
                   class="bg-[#f5f0f3] rounded-xl p-3.5 flex justify-between items-center"
                 >
                   <!-- Context Switcher based on Role -->
-                  {#if authState.user?.role === "payee"}
+                  {#if activeUser?.role === "payee"}
                     <div
                       class="flex items-center px-4 font-semibold text-slate-800 text-[14px]"
                     >
@@ -179,7 +183,9 @@
           <AlertCircle class="h-6 w-6 text-red-600" />
         </div>
         <div class="flex flex-col pt-1">
-          <h2 class="text-[20px] font-semibold text-slate-900 leading-tight mb-1">
+          <h2
+            class="text-[20px] font-semibold text-slate-900 leading-tight mb-1"
+          >
             Cancel Enrollment?
           </h2>
           <p class="text-[13px] text-slate-500 leading-relaxed font-medium">
@@ -228,7 +234,9 @@
           <AlertCircle class="h-6 w-6 text-red-600" />
         </div>
         <div class="flex flex-col pt-1">
-          <h2 class="text-[20px] font-semibold text-slate-900 leading-tight mb-1">
+          <h2
+            class="text-[20px] font-semibold text-slate-900 leading-tight mb-1"
+          >
             Cancel Enrollment?
           </h2>
           <p class="text-[13px] text-slate-500 leading-relaxed font-medium">

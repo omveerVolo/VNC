@@ -16,7 +16,9 @@
     dbStore.notifications.filter((n: any) => n.userId === authState.user?.id)
   );
 
-  let unreadCount = $derived(userNotifications.filter((n: any) => !n.read).length);
+  let unreadCount = $derived(
+    userNotifications.filter((n: any) => !n.read).length
+  );
 
   function toggleRole() {
     if (!authState.user) return;
@@ -57,15 +59,17 @@
 
   <!-- Right Side: Role Switcher & Notifications -->
   <div class="flex items-center gap-6">
-    <!-- Role Switcher -->
-    <button
-      onclick={toggleRole}
-      class="flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-    >
-      Switch to <span class="ml-1 font-semibold text-[#7d326f] capitalize"
-        >{authState.user?.role === "payer" ? "Payee" : "Payer"}</span
+    <!-- Role Switcher (Hidden for Admin Impersonation to prevent profile mutation) -->
+    {#if !authState.isAdminView}
+      <button
+        onclick={toggleRole}
+        class="flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
       >
-    </button>
+        Switch to <span class="ml-1 font-semibold text-[#7d326f] capitalize"
+          >{authState.user?.role === "payer" ? "Payee" : "Payer"}</span
+        >
+      </button>
+    {/if}
 
     <!-- Notification Bell -->
     <div class="relative">
@@ -82,7 +86,7 @@
           <span
             class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white shadow-sm"
           >
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         {/if}
       </button>
@@ -103,19 +107,29 @@
           </div>
 
           <!-- Stacked Notification Container -->
-          <div class="relative flex flex-col gap-2 max-h-[400px] overflow-y-auto px-1 pt-2 pb-4 scrollbar-hide">
+          <div
+            class="relative flex flex-col gap-2 max-h-[400px] overflow-y-auto px-1 pt-2 pb-4 scrollbar-hide"
+          >
             {#if userNotifications.length === 0}
-              <div class="py-10 text-center flex flex-col items-center justify-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                <Bell class="h-8 w-8 text-slate-300 mb-2" strokeWidth={1} />
-                <p class="text-[13px] font-medium text-slate-500">No new notifications</p>
+              <div
+                class="py-10 text-center flex flex-col items-center justify-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200"
+              >
+                <Bell
+                  class="h-8 w-8 text-slate-300 mb-2"
+                  strokeWidth={1}
+                />
+                <p class="text-[13px] font-medium text-slate-500">
+                  No new notifications
+                </p>
               </div>
             {:else}
               <div class="flex flex-col space-y-[-12px]">
                 {#each userNotifications as notification, i}
                   <!-- Dynamic Notification Item with "stack" feel -->
-                  <div 
+                  <div
                     class="group flex items-start gap-3 rounded-xl bg-white p-4 border border-slate-200 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-default relative"
-                    style="z-index: {userNotifications.length - i}; margin-bottom: 4px;"
+                    style="z-index: {userNotifications.length -
+                      i}; margin-bottom: 4px;"
                   >
                     <div
                       class="mt-1.5 h-2 w-2 shrink-0 rounded-full {notification.read
@@ -123,19 +137,29 @@
                         : 'bg-[#7d326f] shadow-[0_0_0_3px_rgba(125,50,111,0.1)]'}"
                     ></div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-[13px] font-bold text-slate-800 leading-tight truncate group-hover:whitespace-normal">
+                      <p
+                        class="text-[13px] font-bold text-slate-800 leading-tight truncate group-hover:whitespace-normal"
+                      >
                         {notification.title}
                       </p>
-                      <p class="text-[12px] text-slate-500 mt-1.5 leading-relaxed">
+                      <p
+                        class="text-[12px] text-slate-500 mt-1.5 leading-relaxed"
+                      >
                         {notification.message}
                       </p>
                       <div class="mt-3 flex items-center justify-between">
-                        <p class="text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
-                          <span class="h-1.5 w-1.5 rounded-full bg-slate-200"></span>
+                        <p
+                          class="text-[10px] font-bold text-slate-400 flex items-center gap-1.5"
+                        >
+                          <span class="h-1.5 w-1.5 rounded-full bg-slate-200"
+                          ></span>
                           JUST NOW
                         </p>
                         {#if !notification.read}
-                          <span class="text-[9px] font-black text-[#7d326f] uppercase tracking-widest bg-[#7d326f]/5 px-1.5 py-0.5 rounded">New</span>
+                          <span
+                            class="text-[9px] font-black text-[#7d326f] uppercase tracking-widest bg-[#7d326f]/5 px-1.5 py-0.5 rounded"
+                            >New</span
+                          >
                         {/if}
                       </div>
                     </div>

@@ -5,14 +5,20 @@ function loadAuth() {
 		const stored = localStorage.getItem('authUser');
 		if (stored) {
 			try {
-				const user = JSON.parse(stored);
-				return { isLoggedIn: true, user };
+				const data = JSON.parse(stored);
+				// Secure true authentication identity, delegating mock targets towards viewingAs
+				return {
+					isLoggedIn: true,
+					user: data.user,
+					viewingAs: data.viewingAs || null,
+					isAdminView: data.isAdminView || false
+				};
 			} catch (e) {
 				// ignore invalid cache
 			}
 		}
 	}
-	return { isLoggedIn: false, user: /** @type {any} */ (null) };
+	return { isLoggedIn: false, user: /** @type {any} */ (null), viewingAs: null, isAdminView: false };
 }
 
 export const authState = $state(loadAuth());
@@ -25,7 +31,11 @@ export function login(userOverrides) {
 	if (userOverrides) {
 		authState.user = /** @type {any} */ ({ ...authState.user, ...userOverrides });
 		if (browser) {
-			localStorage.setItem('authUser', JSON.stringify(authState.user));
+			localStorage.setItem('authUser', JSON.stringify({
+				user: authState.user,
+				viewingAs: authState.viewingAs,
+				isAdminView: authState.isAdminView
+			}));
 		}
 	}
 }
@@ -33,7 +43,40 @@ export function login(userOverrides) {
 export function logout() {
 	authState.isLoggedIn = false;
 	authState.user = /** @type {any} */ (null);
+	authState.viewingAs = null;
+	authState.isAdminView = false;
 	if (browser) {
 		localStorage.removeItem('authUser');
+	}
+}
+
+/**
+ * @param {any} targetUser
+ */
+export function startViewing(targetUser) {
+	if (authState.user?.role === 'admin' && targetUser) {
+		authState.viewingAs = targetUser;
+		authState.isAdminView = true;
+		if (browser) {
+			localStorage.setItem('authUser', JSON.stringify({
+				user: authState.user,
+				viewingAs: authState.viewingAs,
+				isAdminView: authState.isAdminView
+			}));
+		}
+	}
+}
+
+export function stopViewing() {
+	if (authState.isAdminView) {
+		authState.viewingAs = null;
+		authState.isAdminView = false;
+		if (browser) {
+			localStorage.setItem('authUser', JSON.stringify({
+				user: authState.user,
+				viewingAs: null,
+				isAdminView: false
+			}));
+		}
 	}
 }

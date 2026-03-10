@@ -8,9 +8,14 @@
 
   const dispatch = createEventDispatcher();
 
+  // Contextual resolver
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
   // Form State
   let accessiblePrograms = $derived(
-    dbStore.programs.filter((p: any) => p.payerId === authState.user?.id)
+    dbStore.programs.filter((p: any) => p.payerId === activeUser?.id)
   );
   let programOptions = $derived(
     accessiblePrograms.length > 0
@@ -19,6 +24,18 @@
   );
 
   let selectedProgram = $state("");
+
+  // Automatically select the first program so the payee ladder opens correctly
+  $effect(() => {
+    if (
+      programOptions.length > 0 &&
+      !programOptions.includes(selectedProgram) &&
+      programOptions[0] !== "No Active Programs"
+    ) {
+      selectedProgram = programOptions[0];
+    }
+  });
+
   let realProgram = $derived(
     accessiblePrograms.find((p: any) => p.name === selectedProgram)
   );
