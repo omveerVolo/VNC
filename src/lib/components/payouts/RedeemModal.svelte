@@ -18,6 +18,8 @@
   let step = $state(1);
   let isProcessing = $state(false);
   let acceptedTerms = $state(true);
+  let saveCardChecked = $state(true);
+  let otpValues = $state(["", "", "", "", "", ""]);
 
   // Derive today's date
   let todayDate = new Date().toLocaleDateString("en-IN");
@@ -29,10 +31,10 @@
     // Simulate slight network delay for transitions
     await new Promise((resolve) => setTimeout(resolve, 600));
 
-    if (step < 5) {
+    if (step < 6) {
       step += 1;
       // When transitioning to Success (Step 5), mutate the mock DB state universally
-      if (step === 5) {
+      if (step === 6) {
         redeemPayout(payout.dbId || payout.id);
       }
     }
@@ -55,7 +57,7 @@
     class="relative w-full max-w-[440px] rounded-3xl bg-slate-50 shadow-2xl overflow-hidden scale-100 transition-transform"
   >
     <!-- Close Button (Only show if not verifying/processing) -->
-    {#if !isProcessing && step < 5}
+    {#if !isProcessing && step < 6}
       <button
         class="absolute right-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded bg-[#e82525] text-white transition-transform hover:scale-110 hover:bg-red-700 cursor-pointer"
         onclick={onClose}
@@ -191,7 +193,7 @@
           <p
             class="text-[12px] font-medium text-slate-500 w-full text-left mb-6"
           >
-            Play with virtual card information
+            Payvider virtual card information
           </p>
 
           <div
@@ -250,29 +252,26 @@
           </div>
 
           <div
-            class="w-full rounded-xl bg-orange-50 border border-orange-100 p-4 flex gap-3 text-[11px] text-orange-800 font-medium mb-6 shadow-sm"
+            class="w-full rounded-xl bg-slate-100 border border-slate-200 p-4 mb-4 flex gap-3 text-slate-700"
           >
-            <ShieldCheck class="h-4 w-4 shrink-0 mt-0.5 text-orange-600" />
-            <p>
-              Payments are secured and end-to-end encrypted. We do not store any
-              card data on our servers.
-            </p>
+            <div class="mt-0.5 text-slate-500">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[13px] font-bold text-black mb-1">Security Note:</span>
+              <span class="text-[12px] leading-relaxed">
+                Please keep your security code handy. You'll need it in the next step. Your card number and expiry date will be auto-filled automatically.
+              </span>
+            </div>
           </div>
 
-          <div
-            class="w-full flex items-center justify-between px-2 mb-6 text-slate-800"
-          >
+          <div class="w-full rounded-xl bg-white border border-slate-200 p-4 mb-6 flex items-center justify-between shadow-sm">
             <div class="flex flex-col">
-              <span
-                class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider"
-                >Total Claim</span
-              >
-              <span class="text-[13px] font-semibold"
-                >{payout.program} Insurance</span
-              >
+              <span class="text-[12px] font-medium text-slate-500 mb-0.5">Payer Details</span>
+              <span class="text-[16px] font-bold text-[#003366]">{payout.program || "Acme Insurance"}</span>
             </div>
-            <div class="text-[20px] font-semibold">
-              ₹{formatCurrency(payout.payableAmount)}
+            <div class="text-[26px] font-bold text-[#003366]">
+              {formatCurrency(payout.payableAmount)}
             </div>
           </div>
 
@@ -281,10 +280,100 @@
             onclick={handleNext}
             disabled={isProcessing}
           >
-            {isProcessing ? "Authenticating..." : "Continue to Payment"}
+            {isProcessing ? "Processing..." : "Continue to Payment"}
           </button>
         </div>
-      {:else if step === 3}
+            {:else if step === 3}
+        <!-- STEP 3: Complete Payment (Add a new card modal) -->
+        <div class="flex flex-col items-center">
+          <h2 class="text-[18px] font-semibold text-[#003366] w-full text-left mb-1">
+            Complete Payment
+          </h2>
+          <p class="text-[12px] font-medium text-slate-500 w-full text-left mb-6">
+            Add a new card
+          </p>
+
+          <div class="w-full rounded-xl bg-slate-100 p-4 flex items-center gap-3 mb-6 border border-slate-200">
+            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+              <User class="h-4 w-4" />
+            </div>
+            <span class="text-[14px] font-semibold text-[#0066cc]">Using as +91 8076******</span>
+          </div>
+
+          <div class="w-full flex flex-col gap-4 mb-4">
+            <div class="flex flex-col gap-1.5 w-full">
+              <label class="text-[12px] font-medium text-slate-600">Card Number</label>
+              <input
+                type="text"
+                readonly
+                value="9553  4254  6354  1289"
+                class="w-full h-11 rounded-lg border border-slate-200 bg-slate-50 px-4 text-[14px] font-mono font-medium text-slate-700 focus:border-[#0066cc] focus:bg-white outline-none shadow-sm"
+              />
+            </div>
+
+            <div class="flex gap-4 w-full">
+              <div class="flex flex-col gap-1.5 flex-1 w-full">
+                <label class="text-[12px] font-medium text-slate-600">Expiry Date</label>
+                <input
+                  type="text"
+                  readonly
+                  value="12 / 30"
+                  class="w-full h-11 rounded-lg border border-slate-200 bg-slate-50 px-4 text-[14px] font-mono font-medium text-slate-700 focus:border-[#0066cc] focus:bg-white outline-none shadow-sm"
+                />
+              </div>
+              <div class="flex flex-col gap-1.5 flex-1 w-full">
+                <label class="text-[12px] font-medium text-slate-600">CVV</label>
+                <input
+                  type="text"
+                  value="955"
+                  class="w-full h-11 rounded-lg border border-slate-200 bg-slate-50 px-4 text-[14px] font-mono font-medium text-slate-700 focus:border-[#0066cc] focus:bg-white outline-none shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <label class="flex items-center gap-3 cursor-pointer mb-8 w-full group">
+            <input
+              type="checkbox"
+              class="hidden"
+              bind:checked={saveCardChecked}
+            />
+            <div
+              class="flex h-5 w-5 shrink-0 items-center justify-center rounded border {saveCardChecked
+                ? 'border-[#0066cc] bg-[#0066cc]'
+                : 'border-slate-300 bg-white group-hover:border-[#0066cc]'} transition-colors"
+            >
+              {#if saveCardChecked}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  stroke-width="3.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><polyline points="20 6 9 17 4 12"></polyline></svg
+                >
+              {/if}
+            </div>
+            <span class="text-[13px] font-medium text-slate-500"
+              >Save this card as per RBI guidelines</span
+            >
+          </label>
+
+          <button
+            class="w-full h-11 rounded-xl bg-[#0066cc] flex items-center justify-between px-6 text-[14px] font-semibold text-white shadow-sm hover:bg-[#0052a3] transition-all cursor-pointer disabled:opacity-50"
+            onclick={handleNext}
+            disabled={isProcessing}
+          >
+            <span>Complete Payment</span>
+            <span>₹{formatCurrency(payout.payableAmount)}</span>
+          </button>
+        </div>
+
+{:else if step === 4}
         <!-- STEP 3: Complete Payment (Shifted from Step 4) -->
         <div class="flex flex-col">
           <h2 class="text-[18px] font-semibold text-[#003366] mb-1">
@@ -368,7 +457,7 @@
             {/if}
           </button>
         </div>
-      {:else if step === 4}
+      {:else if step === 5}
         <!-- STEP 4: OTP Verification (Second Last Flow - Shifted from Step 1) -->
         <div class="flex flex-col items-center">
           <h2 class="text-[20px] font-semibold text-[#003366] mb-1">
@@ -378,27 +467,39 @@
             Enter the OTP sent to <strong>+91 8076******</strong>
           </p>
 
-          <div class="flex gap-4 mb-6">
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="1"
-            />
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="4"
-            />
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="3"
-            />
-            <input
-              type="text"
-              class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
-              value="0"
-            />
+          <div class="flex gap-2 mb-6">
+            {#each otpValues as value, i}
+              <input
+                type="text"
+                maxlength="1"
+                class="h-12 w-10 text-center rounded-lg border border-slate-300 bg-white font-semibold text-slate-800 focus:border-[#0066cc] outline-none shadow-sm"
+                bind:value={otpValues[i]}
+                oninput={(e) => {
+                  // Only allow numbers
+                  const val = e.currentTarget.value.replace(/[^0-9]/g, '');
+                  otpValues[i] = val;
+                  
+                  // Auto-focus next input
+                  if (val && i < 5) {
+                    const nextInput = e.currentTarget.nextElementSibling;
+                    if (nextInput) (nextInput as HTMLInputElement).focus();
+                  }
+                }}
+                onkeydown={(e) => {
+                  // Handle backspace to focus previous input
+                  if (e.key === 'Backspace' && !otpValues[i] && i > 0) {
+                    const prevInput = e.currentTarget.previousElementSibling;
+                    if (prevInput) {
+                      (prevInput as HTMLInputElement).focus();
+                      // Small delay to ensure cursor is at end and it deletes correctly
+                      setTimeout(() => {
+                         otpValues[i-1] = '';
+                      }, 0);
+                    }
+                  }
+                }}
+              />
+            {/each}
           </div>
 
           <p class="text-[10px] font-medium text-slate-400 mb-1">
@@ -410,14 +511,14 @@
           >
 
           <button
-            class="w-full h-11 rounded-xl bg-[#0066cc] text-[14px] font-semibold text-white shadow-sm hover:bg-[#0052a3] transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
+            class="w-full h-11 rounded-xl bg-[#0066cc] text-[14px] font-semibold text-white shadow-sm hover:bg-[#0052a3] transition-all cursor-pointer flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             onclick={handleNext}
-            disabled={isProcessing}
+            disabled={isProcessing || otpValues.join('').length < 6}
           >
             {isProcessing ? "Verifying..." : "Verify & Complete Payment"}
           </button>
         </div>
-      {:else if step === 5}
+      {:else if step === 6}
         <!-- STEP 5: Success Modal (Themed Blue as requested) -->
         <div class="flex flex-col items-center py-4">
           <div

@@ -64,7 +64,7 @@
             ? p.status === "Ready to redeem"
             : activeUser?.role === "payee"
               ? p.status === "Settled" || p.status === "Redeemed"
-              : p.status === "Ready to redeem" || p.status === "Redeemed";
+              : p.status === "Ready to redeem" || p.status === "Redeemed" || p.status === "Pending";
 
         // Program filter
         let programMatch = true;

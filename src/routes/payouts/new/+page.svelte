@@ -45,8 +45,11 @@
           new Date(b.date).getTime() - new Date(a.date).getTime()
       )
       .filter((p: any) => {
-        // Only show payouts ready to redeem in this view
-        return p.status === "Ready to redeem";
+        // Only show payouts ready to redeem (or pending for the payer to see)
+        if (activeUser?.role === "payee") {
+          return p.status === "Ready to redeem";
+        }
+        return p.status === "Ready to redeem" || p.status === "Pending";
       })
       .filter((p: any) => {
         // Admin should not see payouts here anymore, they have their own "Approved Payments" page
@@ -243,10 +246,10 @@
 
               <div class="col-span-1 flex items-center text-left">
                 <div
-                  class="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1 border border-blue-200"
+                  class="{payout.status === 'Pending' && activeUser?.role === 'payee' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-blue-50 text-blue-600 border-blue-200'} px-2.5 py-1 rounded-md border text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1"
                 >
                   <Clock class="h-3 w-3 stroke-[2.5]" />
-                  {payout.status}
+                  {payout.status === 'Pending' && activeUser?.role !== 'payee' ? 'Ready to redeem' : payout.status}
                 </div>
               </div>
 
@@ -254,13 +257,35 @@
                 class="col-span-1 flex items-center justify-end whitespace-nowrap"
               >
                 {#if payout.status === "Ready to redeem"}
-                  <button
-                    class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-28 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm border border-transparent"
-                    onclick={() => handleRedeemClick(payout)}
-                  >
-                    <Download class="h-3.5 w-3.5" />
-                    Redeem
-                  </button>
+                  {#if activeUser?.role === "payee"}
+                    <button
+                      class="bg-[#0066cc] hover:bg-[#0052a3] text-white w-28 py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm border border-transparent"
+                      onclick={() => handleRedeemClick(payout)}
+                    >
+                      <Download class="h-3.5 w-3.5" />
+                      Redeem
+                    </button>
+                  {:else}
+                    <div
+                      class="bg-blue-50 text-blue-700 w-28 py-1.5 rounded-md text-[12px] font-medium tracking-wide flex items-center justify-center gap-1.5 cursor-default border border-blue-200 text-center leading-tight px-1"
+                    >
+                      Sent to Payee
+                    </div>
+                  {/if}
+                {:else if payout.status === "Pending"}
+                  {#if activeUser?.role === "payee"}
+                    <div
+                      class="bg-amber-50 text-amber-600 w-28 py-1.5 rounded-md text-[12px] font-medium tracking-wide flex items-center justify-center gap-1.5 cursor-default border border-amber-200 text-center leading-tight px-1"
+                    >
+                      Needs Approval
+                    </div>
+                  {:else}
+                    <div
+                      class="bg-blue-50 text-blue-700 w-28 py-1.5 rounded-md text-[12px] font-medium tracking-wide flex items-center justify-center gap-1.5 cursor-default border border-blue-200 text-center leading-tight px-1"
+                    >
+                      Sent to Payee
+                    </div>
+                  {/if}
                 {:else}
                   <div
                     class="bg-[#e8f8f5] text-[#1a7f71] w-28 py-1.5 rounded-md text-[13px] font-semibold tracking-wide flex items-center justify-center gap-1.5 cursor-default border border-[#8cdccb]"
