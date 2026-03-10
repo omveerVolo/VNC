@@ -10,6 +10,7 @@
     Loader2
   } from "lucide-svelte";
   import { createEventDispatcher } from "svelte";
+  import { slide } from "svelte/transition";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
   import {
     createProgram,
@@ -35,8 +36,14 @@
       if (existing) {
         programName = existing.name;
         businessCategory = existing.category;
-        if (existing.enrolledPayees?.length > 0) {
-          payeeEmail = existing.enrolledPayees[0];
+        if (
+          existing.enrolledPayees?.length > 0 ||
+          existing.invitedPayees?.length > 0
+        ) {
+          addedPayees = [
+            ...(existing.enrolledPayees || []),
+            ...(existing.invitedPayees || [])
+          ];
         }
         initialized = true;
       }
@@ -48,13 +55,31 @@
   let businessType = $state("Healthcare");
   let businessCategory = $state("Hospital");
   let deductionSetting = $state("GST %");
-  let payeeEmail = $state("");
   let manualEmail = $state(""); // Stores manual email input
 
   // Used for UI feedback
-  let addedPayees = $state<string[]>([]);
+  let addedPayees = $state<string[]>([]); // This now holds selected emails from the checkboxes
   let isInviting = $state(false);
   let showInvitationSuccess = $state(false);
+  let showProviderDropdown = $state(false);
+
+  // Dynamically map list of trusted network payees from the mock database
+  let availableTrustedPayees = $derived(
+    dbStore.users
+      .filter((u: any) => u.role === "payee")
+      .map((u: any) => ({
+        name: u.businessName || u.name,
+        email: u.email
+      }))
+  );
+
+  function togglePayee(email: string) {
+    if (addedPayees.includes(email)) {
+      addedPayees = addedPayees.filter((e) => e !== email);
+    } else {
+      addedPayees = [...addedPayees, email];
+    }
+  }
 
   async function handleManualAdd() {
     if (manualEmail && manualEmail.includes("@")) {
@@ -64,9 +89,7 @@
       // Simulate invitation spin
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      addedPayees = [...addedPayees, manualEmail];
-      // Sync to final submission pipeline
-      payeeEmail = manualEmail;
+      // As requested, this is now a showcase/dummy. We don't affect actual state.
       manualEmail = "";
       isInviting = false;
       showInvitationSuccess = true;
@@ -78,26 +101,22 @@
     }
   }
 
-  function handleRecommendSelect(email: string) {
-    addedPayees = [...addedPayees, email];
-    payeeEmail = email; // Lock it for submission
-  }
-
   function nextStep() {
     step += 1;
   }
 
   function finishOnboarding() {
+    // addedPayees holds the true list of emails selected via checkboxes
     if (editProgramId) {
       updateProgram(
         editProgramId,
         programName,
         businessType,
         businessCategory,
-        payeeEmail
+        addedPayees
       );
     } else {
-      createProgram(programName, businessType, businessCategory, payeeEmail);
+      createProgram(programName, businessType, businessCategory, addedPayees);
     }
     // Dispatch complete event to parent to trigger view change
     dispatch("complete");
@@ -592,7 +611,7 @@
 
             <!-- Block 2: Recommend Payee System (Swapped logic/title) -->
             <div
-              class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full"
+              class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full relative"
             >
               <div class="flex items-center gap-4">
                 <div
@@ -626,35 +645,95 @@
                     >Add Payee</span
                   >
                   <span class="text-[11px] font-medium text-slate-500 mt-0.5"
-                    >Add an existing user to the program</span
+                    >Select from our trusted network</span
                   >
                 </div>
               </div>
-              <div class="mt-2 text-xs text-slate-500">
-                <CustomSelect
-                  id="recommendSelect"
-                  value="Select Provider"
-                  options={[
-                    "Select Provider",
-                    "Apollo Hospitals",
-                    "Fresh Clinic",
-                    "Narayana Health"
-                  ]}
-                />
+
+              <!-- Inline Dropdown Selector -->
+              <div class="mt-2 w-full flex flex-col gap-2 relative">
+                <button
+                  onclick={() => (showProviderDropdown = !showProviderDropdown)}
+                  class="w-full h-11 flex items-center justify-between px-4 border border-slate-200 rounded-xl bg-white text-[13px] font-semibold text-slate-700 shadow-sm hover:border-[#0066cc] hover:text-[#0066cc] transition-colors cursor-pointer"
+                >
+                  {addedPayees.length > 0
+                    ? `Selected ${addedPayees.length} providers `
+                    : "Select Providers"}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="text-slate-400 transition-transform {showProviderDropdown
+                      ? 'rotate-180'
+                      : ''}"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                {#if showProviderDropdown}
+                  <div
+                    transition:slide={{ duration: 250 }}
+                    class="w-full bg-white border border-slate-200 shadow-sm rounded-xl p-3 flex flex-col ring-1 ring-slate-900/5 mt-1"
+                  >
+                    <div
+                      class="flex flex-col gap-1 overflow-y-auto custom-scrollbar flex-1 pr-1 max-h-[180px]"
+                    >
+                      {#each availableTrustedPayees as payee}
+                        <label
+                          class="flex items-center gap-3 cursor-pointer group hover:bg-slate-50 p-2.5 rounded-lg transition-colors border border-transparent"
+                        >
+                          <div
+                            class="relative flex items-center justify-center"
+                          >
+                            <input
+                              type="checkbox"
+                              class="peer appearance-none h-[18px] w-[18px] border-2 border-slate-300 rounded cursor-pointer checked:bg-[#0066cc] checked:border-[#0066cc] transition-colors"
+                              checked={addedPayees.includes(payee.email)}
+                              onchange={() => togglePayee(payee.email)}
+                            />
+                            <svg
+                              class="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="3.5"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          </div>
+                          <div class="flex flex-col pt-0.5">
+                            <span
+                              class="text-[13px] font-semibold text-slate-800"
+                              >{payee.name}</span
+                            >
+                          </div>
+                        </label>
+                      {/each}
+                    </div>
+
+                    <div
+                      class="mt-3 pt-3 border-t border-slate-100 flex justify-end"
+                    >
+                      <button
+                        onclick={() => (showProviderDropdown = false)}
+                        class="bg-[#0066cc] text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#0052a3] shadow-sm cursor-pointer transition-colors"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                {/if}
               </div>
             </div>
-          </div>
-
-          <!-- Rended Added Labels -->
-          <div class="flex flex-wrap gap-2 px-1">
-            {#each addedPayees as email}
-              <div
-                class="px-3 py-1.5 bg-[#e8f8f5] text-[#1a7f71] border border-[#8cdccb] rounded-md text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <CheckCircle2 class="h-3.5 w-3.5 stroke-[2.5]" />
-                {email}
-              </div>
-            {/each}
           </div>
         </div>
 

@@ -106,15 +106,14 @@ export function createPayout(amount: string, programId: string, payee: string) {
   saveDb();
 }
 
-export function createProgram(name: string, type: string, category: string, payeeEmail?: string) {
+export function createProgram(name: string, type: string, category: string, payeeEmails: string[] = []) {
   if (!authState.user?.id) return;
 
-  // Look up the actual payee ID by email if provided
-  let targetId = "";
-  if (payeeEmail) {
-    const targetUser = dbStore.users.find((u: any) => u.email === payeeEmail);
-    targetId = targetUser ? targetUser.id : payeeEmail;
-  }
+  // Map incoming emails to actual user IDs
+  const targetIds = payeeEmails.map(email => {
+    const targetUser = dbStore.users.find((u: any) => u.email === email);
+    return targetUser ? targetUser.id : email;
+  });
 
   const newProgram = {
     id: `prog_med_${Math.floor(Math.random() * 10000)}`,
@@ -126,7 +125,7 @@ export function createProgram(name: string, type: string, category: string, paye
     createdBy: authState.user.name || "System",
     payoutsReceived: 0,
     enrolledPayees: [],
-    invitedPayees: targetId ? [targetId] : [] // Store ID instead of email for pending hook
+    invitedPayees: targetIds
   };
   
   // Also push a demo notification allowing the Payer to see they made a program
@@ -142,10 +141,10 @@ export function createProgram(name: string, type: string, category: string, paye
   dbStore.programs = [newProgram, ...dbStore.programs];
   dbStore.notifications = [newNotif, ...dbStore.notifications];
 
-  if (targetId) {
+  targetIds.forEach(targetId => {
     const payeeNotif = {
       id: `notif_${Math.floor(Math.random() * 10000)}`,
-      userId: targetId, // Use the actual User ID
+      userId: targetId,
       title: "New Program Invitation",
       message: `You have been added to the "${name}" payment program by your payer. Do you wish to accept?`,
       read: false,
@@ -154,7 +153,7 @@ export function createProgram(name: string, type: string, category: string, paye
       date: new Date().toISOString()
     };
     dbStore.notifications = [payeeNotif, ...dbStore.notifications];
-  }
+  });
   saveDb();
 }
 
@@ -191,31 +190,37 @@ export function rejectInvitation(notificationId: string) {
   saveDb();
 }
 
-export function updateProgram(id: string, name: string, type: string, category: string, payeeEmail?: string) {
-  let targetId = "";
-  if (payeeEmail) {
-    const targetUser = dbStore.users.find((u: any) => u.email === payeeEmail);
-    targetId = targetUser ? targetUser.id : payeeEmail;
-  }
+export function updateProgram(id: string, name: string, type: string, category: string, payeeEmails: string[] = []) {
+  const targetIds = payeeEmails.map(email => {
+    const targetUser = dbStore.users.find((u: any) => u.email === email);
+    return targetUser ? targetUser.id : email;
+  });
 
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === id) {
       const updated = { ...p, name, category };
-      if (targetId && !updated.enrolledPayees.includes(targetId)) {
-        updated.enrolledPayees = [...updated.enrolledPayees, targetId];
-      }
+      
+      // Add all new IDs that aren't already enrolled
+      targetIds.forEach(targetId => {
+        if (!updated.enrolledPayees.includes(targetId) && !updated.invitedPayees?.includes(targetId)) {
+          updated.invitedPayees = [...(updated.invitedPayees || []), targetId];
+        }
+      });
+      
       return updated;
     }
     return p;
   });
 
-  if (targetId) {
-    // Check if a notification already exists for this invitation to avoid duplicates
+  targetIds.forEach(targetId => {
     const alreadyInvited = dbStore.notifications.some(
       (n: any) => n.userId === targetId && n.programId === id
     );
 
-    if (!alreadyInvited) {
+    const programToUpdate = dbStore.programs.find((p: any) => p.id === id);
+    const alreadyEnrolled = programToUpdate?.enrolledPayees.includes(targetId);
+
+    if (!alreadyInvited && !alreadyEnrolled) {
       const payeeNotif = {
         id: `notif_${Math.floor(Math.random() * 10000)}`,
         userId: targetId,
@@ -228,7 +233,7 @@ export function updateProgram(id: string, name: string, type: string, category: 
       };
       dbStore.notifications = [payeeNotif, ...dbStore.notifications];
     }
-  }
+  });
   saveDb();
 }
 
