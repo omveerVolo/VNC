@@ -87,7 +87,9 @@
       {#if step === 1}
         <!-- STEP 1: NDC Approval Document (Shifted from Step 2) -->
         <div class="flex flex-col">
-          <h2 class="text-[28px] font-[800] text-[#003366] mb-1 tracking-tight">
+          <h2
+            class="text-[28px] font-semibold text-[#003366] mb-1 tracking-tight"
+          >
             NDC Approval Document
           </h2>
           <p class="text-[15px] font-semibold text-slate-700 mb-6 mt-1">
@@ -101,7 +103,7 @@
               (On Hospital letter head)
             </div>
             <div
-              class="flex items-center justify-center font-[900] text-[18px] text-black mb-6 tracking-tight"
+              class="flex items-center justify-center font-semibold text-[18px] text-black mb-6 tracking-tight"
             >
               No Due Certificate
             </div>
@@ -110,7 +112,7 @@
             >
               <p>Date – {todayDate}</p>
               <p>
-                <span class="font-semibold">Provider Name and address –</span>
+                <span class="font-semibold">Payer Name and address –</span>
                 <span class="font-semibold"
                   >{payout.provider}; 123 Healthcare Avenue, Mumbai</span
                 >

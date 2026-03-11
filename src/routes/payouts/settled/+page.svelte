@@ -115,7 +115,7 @@
           class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr_1.5fr] gap-4 rounded-xl bg-[#e6dbf3] px-6 py-4 text-[13px] text-[#5b4897] font-semibold"
         >
           <div class="col-span-1 whitespace-nowrap">Program</div>
-          <div class="col-span-1 whitespace-nowrap">Provider</div>
+          <div class="col-span-1 whitespace-nowrap">Payer</div>
           <div class="col-span-1 whitespace-nowrap">Transaction ID</div>
           <div class="col-span-1 text-center whitespace-nowrap">
             Approved Amount

@@ -47,7 +47,7 @@
   let programName = $state("");
   let businessType = $state("Healthcare");
   let businessCategory = $state("Hospital");
-  let deductionSetting = $state("GST %");
+  let deductionSetting = $state("None");
   let manualEmail = $state(""); // Stores manual email input
 
   // Used for UI feedback
@@ -332,7 +332,9 @@
               Welcome <span class="text-[#0066cc]">Payer!</span>
             </h2>
             <p class="mt-2 text-[15px] font-medium text-slate-600">
-              Acme Insurance
+              {authState.user?.businessName ||
+                authState.user?.name ||
+                "Acme Insurance"}
             </p>
           </div>
           <Building2
@@ -558,8 +560,89 @@
           </div>
         </div>
 
+        <div class="mt-10 flex flex-col items-start gap-4">
+          <button
+            onclick={nextStep}
+            class="h-14 w-[220px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
+          >
+            Next Step
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Add Payees -->
+    {:else if step === 4}
+      <div
+        class="w-full max-w-4xl rounded-[32px] bg-white p-12 shadow-xl relative mt-12"
+      >
+        <button
+          onclick={handleBack}
+          class="absolute top-8 right-8 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
+        >
+          <ArrowLeft class="h-4 w-4" /> Back
+        </button>
+
+        <h2 class="text-2xl font-semibold text-slate-900 mt-8 md:mt-2">
+          Add Payee
+        </h2>
+        <p class="mt-1 text-sm font-medium text-slate-500">
+          Select from our trusted network
+        </p>
+
+        <div class="mt-6 w-full mb-10">
+          <div
+            class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 h-full relative"
+          >
+            <div class="mt-2 w-full flex flex-col gap-3">
+              {#if availableTrustedPayees.length === 0}
+                <div class="py-6 text-center text-[12px] text-slate-400">
+                  No payees available
+                </div>
+              {:else}
+                <div
+                  class="flex flex-col gap-3 max-h-[260px] overflow-y-auto custom-scrollbar pr-1"
+                >
+                  {#each availableTrustedPayees as payee}
+                    <label
+                      class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                    >
+                      <div class="relative flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          class="peer appearance-none h-[18px] w-[18px] border-2 border-slate-300 rounded cursor-pointer checked:bg-[#0066cc] checked:border-[#0066cc] transition-colors"
+                          checked={addedPayees.includes(payee.id)}
+                          onchange={() => togglePayee(payee.id)}
+                        />
+                        <svg
+                          class="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      </div>
+                      <div class="flex flex-col">
+                        <span class="text-[13px] font-semibold text-slate-800">
+                          {payee.name}
+                        </span>
+
+                        <span class="text-[11px] text-slate-500 mt-0.5">
+                          {payee.city || "City"}, {payee.state || "State"}
+                        </span>
+                      </div>
+                    </label>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          </div>
+        </div>
         <div
-          class="mt-8 flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 relative w-full md:w-1/2"
+          class="mb-8 flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 relative w-full mt-6 md:mt-0"
         >
           <div class="flex gap-4">
             <div
@@ -624,87 +707,6 @@
                 ✓ invitation sent
               </p>
             {/if}
-          </div>
-        </div>
-
-        <div class="mt-10 flex flex-col items-start gap-4">
-          <button
-            onclick={nextStep}
-            class="h-14 w-[220px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
-          >
-            Next Step
-          </button>
-        </div>
-      </div>
-
-      <!-- STEP 4: Add Payees -->
-    {:else if step === 4}
-      <div
-        class="w-full max-w-4xl rounded-[32px] bg-white p-12 shadow-xl relative mt-12"
-      >
-        <button
-          onclick={handleBack}
-          class="absolute top-8 right-8 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
-        >
-          <ArrowLeft class="h-4 w-4" /> Back
-        </button>
-        <h2 class="text-2xl font-semibold text-slate-900 mt-6 md:mt-0">
-          Add Payee
-        </h2>
-        <p class="mt-1 text-sm font-medium text-slate-500">
-          Select from our trusted network
-        </p>
-
-        <div class="mt-6 w-full">
-          <div
-            class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 h-full relative"
-          >
-            <div class="mt-2 w-full flex flex-col gap-3">
-              {#if availableTrustedPayees.length === 0}
-                <div class="py-6 text-center text-[12px] text-slate-400">
-                  No payees available
-                </div>
-              {:else}
-                <div
-                  class="flex flex-col gap-3 max-h-[260px] overflow-y-auto custom-scrollbar pr-1"
-                >
-                  {#each availableTrustedPayees as payee}
-                    <label
-                      class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-colors"
-                    >
-                      <div class="relative flex items-center justify-center">
-                        <input
-                          type="checkbox"
-                          class="peer appearance-none h-[18px] w-[18px] border-2 border-slate-300 rounded cursor-pointer checked:bg-[#0066cc] checked:border-[#0066cc] transition-colors"
-                          checked={addedPayees.includes(payee.id)}
-                          onchange={() => togglePayee(payee.id)}
-                        />
-                        <svg
-                          class="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="3.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      </div>
-                      <div class="flex flex-col">
-                        <span class="text-[13px] font-semibold text-slate-800">
-                          {payee.name}
-                        </span>
-
-                        <span class="text-[11px] text-slate-500 mt-0.5">
-                          {payee.city || "City"}, {payee.state || "State"}
-                        </span>
-                      </div>
-                    </label>
-                  {/each}
-                </div>
-              {/if}
-            </div>
           </div>
         </div>
         <div class="mt-10 flex flex-col items-start gap-4">

@@ -128,7 +128,7 @@
     );
     const pid = realProgram ? realProgram.id : "prog_med_01";
 
-    createPayout(amount, pid, selectedPayeeId, selectedPayee);
+    createPayout(amount, pid, selectedPayeeId, selectedPayee, txId);
     showSuccess = false;
     dispatch("cancel"); // returns to dashboard
   }

@@ -26,7 +26,7 @@
   let firstApprovalBy = $state("Manager");
   let conditionOperator = $state("Select");
   let conditionValue = $state("0");
-  let redeemEntity = $state("Volo");
+  let redeemEntity = $state("HDFC");
   let redeemRole = $state("Ops");
 
   function handleSave() {
@@ -180,7 +180,12 @@
                             <CustomSelect
                               id="amountCondition"
                               bind:value={conditionOperator}
-                              options={["Select", "Is Limit", "Equals"]}
+                              options={[
+                                "Select",
+                                "More than",
+                                "Less than",
+                                "Equals"
+                              ]}
                             />
                           </div>
                           <div class="flex-1 h-[46px]">
@@ -224,12 +229,7 @@
                               <CustomSelect
                                 id="redeemEntity"
                                 bind:value={redeemEntity}
-                                options={[
-                                  "Volo",
-                                  "HDFC",
-                                  "External",
-                                  "Partner"
-                                ]}
+                                options={["HDFC", "External", "Partner"]}
                               />
                             </div>
                           </div>

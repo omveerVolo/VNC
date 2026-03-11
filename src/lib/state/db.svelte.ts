@@ -1,7 +1,7 @@
 import { authState } from "./auth.svelte.js";
 
-// const API_BASE = "http://13.203.158.71/api";
-const API_BASE = "https://staging-backend.finnova.health/api";
+// const API_BASE = "http://13.203.158.71:8080/api";
+const API_BASE = "https://staging-backend.finnova.health";
 
 const X_API_KEY = import.meta.env.VITE_X_API_KEY || "";
 const X_AUTH_CODE = import.meta.env.VITE_X_AUTH_CODE || "";
@@ -126,7 +126,8 @@ export function createPayout(
   amount: string,
   programId: string,
   payeeId: string,
-  payeeLabel: string
+  payeeLabel: string,
+  customTxId?: string
 ) {
   // Remove currency symbol and commas before parsing
   const cleanAmount = amount.replace(/[₹,]/g, '');
@@ -159,7 +160,7 @@ export function createPayout(
     date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
     providerName: payeeLabel || targetUser?.businessName || targetUser?.name || payeeId,
     patientName: "Newly Assigned",
-    claimNo: `VADE${Math.floor(Math.random() * 1000000)}`,
+    claimNo: customTxId?.trim() || `VADE${Math.floor(Math.random() * 1000000)}`,
     payoutId: `ACME${Math.floor(Math.random() * 100000000)}`,
     amount: cleanAmount,
     status: initialStatus
