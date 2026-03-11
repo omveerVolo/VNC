@@ -4,6 +4,18 @@
   import { authState } from "$lib/state/auth.svelte.js";
 
   let { payouts = [], isPayee = false, onredeem = () => {} } = $props();
+
+  const isToday = (value: any) => {
+    if (!value) return false;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return false;
+    const now = new Date();
+    return (
+      parsed.getFullYear() === now.getFullYear() &&
+      parsed.getMonth() === now.getMonth() &&
+      parsed.getDate() === now.getDate()
+    );
+  };
 </script>
 
 <div
@@ -26,7 +38,9 @@
           <div
             class="mt-1.5 flex h-2 w-2 shrink-0 rounded-full {payout.status ===
               'Ready to redeem' || payout.status === 'Ready to Redeem'
-              ? 'bg-[#ea540e]'
+              ? isToday(payout.createdAt)
+                ? 'bg-[#ea540e]'
+                : 'bg-transparent'
               : 'bg-transparent'}"
           ></div>
 
@@ -84,13 +98,15 @@
                 class="bg-[#e8f8f5] text-[#1a7f71] w-full py-1.5 rounded-md text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-default border border-[#8cdccb]"
               >
                 <CheckCircle2 class="h-4 w-4 stroke-[2.5]" />
-                Redeemed
+                {payout.status || "Redeemed"}
               </div>
             {/if}
           {:else}
             <!-- Payer Mode Status -->
             <span class="text-[13px] text-slate-800 font-medium"
-              >{payout.status === 'Pending' ? 'Ready to redeem' : (payout.status || "Completed")}</span
+              >{payout.status === "Pending"
+                ? "Ready to redeem"
+                : payout.status || "Completed"}</span
             >
           {/if}
         </div>

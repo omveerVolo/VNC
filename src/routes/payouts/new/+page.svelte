@@ -39,11 +39,13 @@
 
   // Reactive derived state feeding off the global Database Store for "Approved" payloads
   let filteredPayouts = $derived(
-    [...dbStore.payouts]
-      .sort(
-        (a: any, b: any) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-      )
+    (activeUser?.role === "payer"
+      ? [...dbStore.payouts].reverse()
+      : [...dbStore.payouts].sort(
+          (a: any, b: any) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+    )
       .filter((p: any) => {
         // Only show payouts ready to redeem (or pending for the payer to see)
         if (activeUser?.role === "payee") {
@@ -83,17 +85,21 @@
         );
         const payerName = payerUser
           ? payerUser.businessName || payerUser.name
-          : "Unknown Payer";
+          : program?.createdBy ||
+            program?.payerName ||
+            p.payerName ||
+            "Unknown Payer";
 
         return {
           dbId: p.id,
+          payoutId: p.payoutId,
           id: p.claimNo,
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : p.providerName,
           patientName: p.patientName,
           createdAt: p.date,
           approvedAmount: `₹${p.amount}`,
-          gst: "₹1,250",
+          gst: "None",
           payableAmount: `₹${p.amount}`,
           status: p.status
         };
@@ -246,10 +252,15 @@
 
               <div class="col-span-1 flex items-center text-left">
                 <div
-                  class="{payout.status === 'Pending' && activeUser?.role === 'payee' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-blue-50 text-blue-600 border-blue-200'} px-2.5 py-1 rounded-md border text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1"
+                  class="{payout.status === 'Pending' &&
+                  activeUser?.role === 'payee'
+                    ? 'bg-amber-50 text-amber-600 border-amber-200'
+                    : 'bg-blue-50 text-blue-600 border-blue-200'} px-2.5 py-1 rounded-md border text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1"
                 >
                   <Clock class="h-3 w-3 stroke-[2.5]" />
-                  {payout.status === 'Pending' && activeUser?.role !== 'payee' ? 'Ready to redeem' : payout.status}
+                  {payout.status === "Pending" && activeUser?.role !== "payee"
+                    ? "Ready to redeem"
+                    : payout.status}
                 </div>
               </div>
 

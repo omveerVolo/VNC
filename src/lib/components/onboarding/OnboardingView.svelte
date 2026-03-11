@@ -15,7 +15,8 @@
   import {
     createProgram,
     updateProgram,
-    dbStore
+    dbStore,
+    apiCall
   } from "$lib/state/db.svelte.js";
 
   let { initialStep = 1, editProgramId = null } = $props();
@@ -24,6 +25,7 @@
   let step = $state(1);
 
   let initialized = false;
+  let loadedProgramId: string | null = null;
   // Sync initialStep prop cleanly when mounted/changed, and prepopulate if editing
   $effect(() => {
     if (initialStep) {
@@ -36,15 +38,6 @@
       if (existing) {
         programName = existing.name;
         businessCategory = existing.category;
-        if (
-          existing.enrolledPayees?.length > 0 ||
-          existing.invitedPayees?.length > 0
-        ) {
-          addedPayees = [
-            ...(existing.enrolledPayees || []),
-            ...(existing.invitedPayees || [])
-          ];
-        }
         initialized = true;
       }
     }
@@ -58,26 +51,51 @@
   let manualEmail = $state(""); // Stores manual email input
 
   // Used for UI feedback
-  let addedPayees = $state<string[]>([]); // This now holds selected emails from the checkboxes
+  let addedPayees = $state<string[]>([]); // This now holds selected payee IDs
   let isInviting = $state(false);
   let showInvitationSuccess = $state(false);
   let showProviderDropdown = $state(false);
+  let hasSubmitted = $state(false);
 
-  // Dynamically map list of trusted network payees from the mock database
+  let allPayees = $state<any[]>([]);
   let availableTrustedPayees = $derived(
-    dbStore.users
-      .filter((u: any) => u.role === "payee")
-      .map((u: any) => ({
-        name: u.businessName || u.name,
-        email: u.email
-      }))
+    allPayees.map((u: any) => ({
+      id: u.id,
+      name: u.businessName || u.name,
+      email: u.email,
+      city: u.city || "",
+      state: u.state || ""
+    }))
   );
 
-  function togglePayee(email: string) {
-    if (addedPayees.includes(email)) {
-      addedPayees = addedPayees.filter((e) => e !== email);
+  $effect(() => {
+    apiCall("/payees")
+      .then((res) => {
+        allPayees = Array.isArray(res) ? res : res?.payees || [];
+      })
+      .catch(() => {
+        allPayees = [];
+      });
+  });
+
+  $effect(() => {
+    if (!editProgramId || loadedProgramId === editProgramId) return;
+    loadedProgramId = editProgramId;
+    apiCall(`/programs/payees?programId=${editProgramId}`)
+      .then((res) => {
+        const enrolledIds = res?.payees?.map((p: any) => p.id) || [];
+        addedPayees = enrolledIds;
+      })
+      .catch(() => {
+        // keep as-is if request fails
+      });
+  });
+
+  function togglePayee(id: string) {
+    if (addedPayees.includes(id)) {
+      addedPayees = addedPayees.filter((e) => e !== id);
     } else {
-      addedPayees = [...addedPayees, email];
+      addedPayees = [...addedPayees, id];
     }
   }
 
@@ -102,22 +120,25 @@
   }
 
   function nextStep() {
+    if (step === 4 && !hasSubmitted) {
+      hasSubmitted = true;
+      // addedPayees holds the true list of payee IDs selected via checkboxes
+      if (editProgramId) {
+        updateProgram(
+          editProgramId,
+          programName,
+          businessType,
+          businessCategory,
+          addedPayees
+        );
+      } else {
+        createProgram(programName, businessType, businessCategory, addedPayees);
+      }
+    }
     step += 1;
   }
 
   function finishOnboarding() {
-    // addedPayees holds the true list of emails selected via checkboxes
-    if (editProgramId) {
-      updateProgram(
-        editProgramId,
-        programName,
-        businessType,
-        businessCategory,
-        addedPayees
-      );
-    } else {
-      createProgram(programName, businessType, businessCategory, addedPayees);
-    }
     // Dispatch complete event to parent to trigger view change
     dispatch("complete");
   }
@@ -337,7 +358,9 @@
         </button>
 
         <h2 class="text-2xl font-semibold text-slate-900 mt-6 md:mt-0">
-          Program Configuration
+          {editProgramId
+            ? "Edit Program Configuration"
+            : "Program Configuration"}
         </h2>
         <p class="mt-1 text-sm font-medium text-slate-500">
           Set up your payment program details
@@ -498,17 +521,16 @@
           <span class="block text-xs font-semibold text-slate-700"
             >Deduction Settings *</span
           >
-          <div class="mt-3 flex gap-4">
-            {#each ["Standard Deduction %", "GST %", "Both", "Neither"] as setting}
-              <!-- Fixed height to prevent jumping -->
+          <div class="mt-3 flex gap-4 pb-4 overflow-x-auto">
+            {#each ["None", "Standard Deduction %", "GST %", "Both"] as setting}
               <button
                 onclick={() => (deductionSetting = setting)}
-                class="relative h-[84px] w-full rounded-xl border px-2 py-3 text-xs font-semibold transition-all cursor-pointer
-                  {deductionSetting === setting
-                  ? 'border-[#7d326f] bg-purple-50/50 text-[#7d326f] flex flex-col items-center justify-start'
-                  : 'border-slate-200 text-slate-400 hover:bg-slate-50 flex flex-col items-center justify-start'}"
+                class="relative h-[84px] flex-1 min-w-[180px] rounded-xl border px-2 py-3 text-xs font-semibold transition-all cursor-pointer
+                {deductionSetting === setting
+                  ? 'border-[#7d326f] bg-purple-50/50 text-[#7d326f] flex flex-col items-center justify-center'
+                  : 'border-slate-200 text-slate-400 hover:bg-slate-50 flex flex-col items-center justify-center'}"
               >
-                <div class="flex items-center gap-2 mt-1">
+                <div class="flex items-center gap-2">
                   <div
                     class="h-4 w-4 shrink-0 rounded-full border-2 {deductionSetting ===
                     setting
@@ -518,237 +540,182 @@
                   <span class="text-center">{setting}</span>
                 </div>
 
-                <div class="h-6 mt-2 w-full flex justify-center">
-                  {#if deductionSetting === setting && setting === "GST %"}
+                {#if deductionSetting === setting && (setting === "GST %" || setting === "Standard Deduction %")}
+                  <div class="h-6 mt-2 w-full flex justify-center">
                     <div
                       class="text-[10px] bg-white border border-slate-200 px-3 py-1 rounded w-3/4 text-center font-semibold text-slate-700 shadow-sm"
                     >
-                      5 %
+                      {setting === "GST %" ? "0 %" : "0 %"}
                     </div>
-                  {:else if deductionSetting === setting && setting === "Standard Deduction %"}
-                    <div
-                      class="text-[10px] bg-white border border-slate-200 px-3 py-1 rounded w-3/4 text-center font-semibold text-slate-700 shadow-sm"
-                    >
-                      10 %
-                    </div>
-                  {/if}
-                </div>
+                  </div>
+                {/if}
               </button>
             {/each}
           </div>
         </div>
 
-        <div class="mt-10 flex flex-col gap-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-            <!-- Block 1: Add Manual Payee (Swapped logic/title) -->
+        <div
+          class="mt-8 flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 relative w-full md:w-1/2"
+        >
+          <div class="flex gap-4">
             <div
-              class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full relative"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white shadow-sm"
             >
-              <div class="flex gap-4">
-                <div
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white shadow-sm"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-slate-700"
-                  >
-                    <rect
-                      width="20"
-                      height="16"
-                      x="2"
-                      y="4"
-                      rx="2"
-                    /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                </div>
-                <div class="flex flex-col">
-                  <span class="font-semibold text-slate-800 text-[14px]"
-                    >Recommend Payees</span
-                  >
-                  <span class="text-[11px] font-medium text-slate-500 mt-0.5"
-                    >Select from our trusted network</span
-                  >
-                </div>
-              </div>
-
-              <div class="mt-2 flex flex-col gap-2">
-                <div class="flex items-center gap-2">
-                  <input
-                    type="email"
-                    bind:value={manualEmail}
-                    placeholder="Enter email address"
-                    class="h-10 flex-1 rounded-xl border border-slate-200 px-3 text-[13px] outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
-                  />
-                  <button
-                    onclick={handleManualAdd}
-                    disabled={isInviting}
-                    class="h-10 px-5 rounded-xl bg-[#7d326f] text-white text-[13px] font-semibold hover:bg-[#68285c] cursor-pointer shadow-sm transition-all whitespace-nowrap flex items-center justify-center min-w-[80px]"
-                  >
-                    {#if isInviting}
-                      <Loader2 class="h-4 w-4 animate-spin" />
-                    {:else}
-                      Add
-                    {/if}
-                  </button>
-                </div>
-                {#if showInvitationSuccess}
-                  <p
-                    class="text-[11px] font-semibold text-[#7d326f] animate-in fade-in slide-in-from-top-1 px-1"
-                  >
-                    ✓ invitation sent
-                  </p>
-                {/if}
-              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="text-slate-700"
+              >
+                <rect
+                  width="20"
+                  height="16"
+                  x="2"
+                  y="4"
+                  rx="2"
+                />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
             </div>
-
-            <!-- Block 2: Recommend Payee System (Swapped logic/title) -->
-            <div
-              class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 h-full relative"
-            >
-              <div class="flex items-center gap-4">
-                <div
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white shadow-sm"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-slate-700"
-                  >
-                    <path
-                      d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
-                    /><circle
-                      cx="9"
-                      cy="7"
-                      r="4"
-                    /><path d="m22 11-l.5 .5" /><path d="M16 11h6" /><path
-                      d="M19 8v6"
-                    />
-                  </svg>
-                </div>
-                <div class="flex flex-col">
-                  <span class="font-semibold text-slate-800 text-[14px]"
-                    >Add Payee</span
-                  >
-                  <span class="text-[11px] font-medium text-slate-500 mt-0.5"
-                    >Select from our trusted network</span
-                  >
-                </div>
-              </div>
-
-              <!-- Inline Dropdown Selector -->
-              <div class="mt-2 w-full flex flex-col gap-2 relative">
-                <button
-                  onclick={() => (showProviderDropdown = !showProviderDropdown)}
-                  class="w-full h-11 flex items-center justify-between px-4 border border-slate-200 rounded-xl bg-white text-[13px] font-semibold text-slate-700 shadow-sm hover:border-[#0066cc] hover:text-[#0066cc] transition-colors cursor-pointer"
-                >
-                  {addedPayees.length > 0
-                    ? `Selected ${addedPayees.length} providers `
-                    : "Select Providers"}
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-slate-400 transition-transform {showProviderDropdown
-                      ? 'rotate-180'
-                      : ''}"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-
-                {#if showProviderDropdown}
-                  <div
-                    transition:slide={{ duration: 250 }}
-                    class="w-full bg-white border border-slate-200 shadow-sm rounded-xl p-3 flex flex-col ring-1 ring-slate-900/5 mt-1"
-                  >
-                    <div
-                      class="flex flex-col gap-1 overflow-y-auto custom-scrollbar flex-1 pr-1 max-h-[180px]"
-                    >
-                      {#each availableTrustedPayees as payee}
-                        <label
-                          class="flex items-center gap-3 cursor-pointer group hover:bg-slate-50 p-2.5 rounded-lg transition-colors border border-transparent"
-                        >
-                          <div
-                            class="relative flex items-center justify-center"
-                          >
-                            <input
-                              type="checkbox"
-                              class="peer appearance-none h-[18px] w-[18px] border-2 border-slate-300 rounded cursor-pointer checked:bg-[#0066cc] checked:border-[#0066cc] transition-colors"
-                              checked={addedPayees.includes(payee.email)}
-                              onchange={() => togglePayee(payee.email)}
-                            />
-                            <svg
-                              class="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="3.5"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            >
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                          </div>
-                          <div class="flex flex-col pt-0.5">
-                            <span
-                              class="text-[13px] font-semibold text-slate-800"
-                              >{payee.name}</span
-                            >
-                          </div>
-                        </label>
-                      {/each}
-                    </div>
-
-                    <div
-                      class="mt-3 pt-3 border-t border-slate-100 flex justify-end"
-                    >
-                      <button
-                        onclick={() => (showProviderDropdown = false)}
-                        class="bg-[#0066cc] text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#0052a3] shadow-sm cursor-pointer transition-colors"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  </div>
-                {/if}
-              </div>
+            <div class="flex flex-col">
+              <span class="font-semibold text-slate-800 text-[14px]"
+                >Recommend payee</span
+              >
+              <span class="text-[11px] font-medium text-slate-500 mt-0.5"
+                >Optional, adds new payees directly</span
+              >
             </div>
+          </div>
+
+          <div class="mt-2 flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <input
+                type="email"
+                bind:value={manualEmail}
+                placeholder="Enter email address"
+                class="h-10 flex-1 rounded-xl border border-slate-200 px-3 text-[13px] outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
+              />
+              <button
+                onclick={handleManualAdd}
+                disabled={isInviting}
+                class="h-10 px-5 rounded-xl bg-[#7d326f] text-white text-[13px] font-semibold hover:bg-[#68285c] cursor-pointer shadow-sm transition-all whitespace-nowrap flex items-center justify-center min-w-[80px]"
+              >
+                {#if isInviting}
+                  <Loader2 class="h-4 w-4 animate-spin" />
+                {:else}
+                  Add
+                {/if}
+              </button>
+            </div>
+            {#if showInvitationSuccess}
+              <p
+                class="text-[11px] font-semibold text-[#7d326f] animate-in fade-in slide-in-from-top-1 px-1"
+              >
+                ✓ invitation sent
+              </p>
+            {/if}
           </div>
         </div>
 
         <div class="mt-10 flex flex-col items-start gap-4">
           <button
             onclick={nextStep}
-            class="h-14 w-[340px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
+            class="h-14 w-[220px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
           >
+            Next Step
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Add Payees -->
+    {:else if step === 4}
+      <div
+        class="w-full max-w-4xl rounded-[32px] bg-white p-12 shadow-xl relative mt-12"
+      >
+        <button
+          onclick={handleBack}
+          class="absolute top-8 right-8 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
+        >
+          <ArrowLeft class="h-4 w-4" /> Back
+        </button>
+        <h2 class="text-2xl font-semibold text-slate-900 mt-6 md:mt-0">
+          Add Payee
+        </h2>
+        <p class="mt-1 text-sm font-medium text-slate-500">
+          Select from our trusted network
+        </p>
+
+        <div class="mt-6 w-full">
+          <div
+            class="flex flex-col gap-4 rounded-2xl bg-slate-50 p-6 ring-1 ring-slate-200 h-full relative"
+          >
+            <div class="mt-2 w-full flex flex-col gap-3">
+              {#if availableTrustedPayees.length === 0}
+                <div class="py-6 text-center text-[12px] text-slate-400">
+                  No payees available
+                </div>
+              {:else}
+                <div
+                  class="flex flex-col gap-3 max-h-[260px] overflow-y-auto custom-scrollbar pr-1"
+                >
+                  {#each availableTrustedPayees as payee}
+                    <label
+                      class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                    >
+                      <div class="relative flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          class="peer appearance-none h-[18px] w-[18px] border-2 border-slate-300 rounded cursor-pointer checked:bg-[#0066cc] checked:border-[#0066cc] transition-colors"
+                          checked={addedPayees.includes(payee.id)}
+                          onchange={() => togglePayee(payee.id)}
+                        />
+                        <svg
+                          class="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      </div>
+                      <div class="flex flex-col">
+                        <span class="text-[13px] font-semibold text-slate-800">
+                          {payee.name}
+                        </span>
+
+                        <span class="text-[11px] text-slate-500 mt-0.5">
+                          {payee.city || "City"}, {payee.state || "State"}
+                        </span>
+                      </div>
+                    </label>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          </div>
+        </div>
+        <div class="mt-10 flex flex-col items-start gap-4">
+          <button
+            onclick={nextStep}
+            class="h-14 w-[260px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+          >
+            <CheckCircle2 class="h-4 w-4" />
             Complete Setup
           </button>
         </div>
       </div>
 
-      <!-- STEP 4: Success Modal -->
-    {:else if step === 4}
+      <!-- STEP 5: Success Modal -->
+    {:else if step === 5}
       <div
         class="w-full max-w-[420px] rounded-[24px] bg-white p-6 md:p-8 shadow-2xl relative mt-16 mx-auto border border-slate-100 ring-1 ring-slate-900/5"
       >

@@ -11,9 +11,10 @@
     ArrowRight
   } from "@lucide/svelte";
   import { authState } from "$lib/state/auth.svelte.js";
-  import { redeemPayout } from "$lib/state/db.svelte.js";
+  import { apiCall, redeemPayout } from "$lib/state/db.svelte.js";
 
   let { payout, onClose }: { payout: any; onClose: () => void } = $props();
+  import { goto } from "$app/navigation";
 
   let step = $state(1);
   let isProcessing = $state(false);
@@ -35,7 +36,15 @@
       step += 1;
       // When transitioning to Success (Step 5), mutate the mock DB state universally
       if (step === 6) {
-        redeemPayout(payout.dbId || payout.id);
+        const payoutId = payout.payoutId;
+        if (payoutId) {
+          const res = await apiCall("/payouts/status", "PUT", {
+            payoutIds: [payoutId]
+          });
+          if (res !== null) {
+            redeemPayout(payout.dbId || payout.id);
+          }
+        }
       }
     }
     isProcessing = false;
@@ -45,6 +54,11 @@
     if (!rawAmount) return "0";
     if (typeof rawAmount === "number") return rawAmount.toLocaleString("en-IN");
     return String(rawAmount).replace("₹", "");
+  }
+
+  function handleReturnDashboard() {
+    onClose();
+    goto("/");
   }
 </script>
 
@@ -209,7 +223,8 @@
             <div
               class="flex justify-between items-center relative z-10 opacity-90"
             >
-              <span class="text-[14px] font-semibold tracking-widest text-blue-200"
+              <span
+                class="text-[14px] font-semibold tracking-widest text-blue-200"
                 >VIRTUAL CARD</span
               >
               <div class="flex gap-1 items-center">
@@ -255,23 +270,46 @@
             class="w-full rounded-xl bg-slate-100 border border-slate-200 p-4 mb-4 flex gap-3 text-slate-700"
           >
             <div class="mt-0.5 text-slate-500">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path
+                  d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
+                /><path d="M12 9v4" /><path d="M12 17h.01" /></svg
+              >
             </div>
             <div class="flex flex-col">
-              <span class="text-[13px] font-bold text-black mb-1">Security Note:</span>
+              <span class="text-[13px] font-bold text-black mb-1"
+                >Security Note:</span
+              >
               <span class="text-[12px] leading-relaxed">
-                Please keep your security code handy. You'll need it in the next step. Your card number and expiry date will be auto-filled automatically.
+                Please keep your security code handy. You'll need it in the next
+                step. Your card number and expiry date will be auto-filled
+                automatically.
               </span>
             </div>
           </div>
 
-          <div class="w-full rounded-xl bg-white border border-slate-200 p-4 mb-6 flex items-center justify-between shadow-sm">
+          <div
+            class="w-full rounded-xl bg-white border border-slate-200 p-4 mb-6 flex items-center justify-between shadow-sm"
+          >
             <div class="flex flex-col">
-              <span class="text-[12px] font-medium text-slate-500 mb-0.5">Payer Details</span>
-              <span class="text-[16px] font-bold text-[#003366]">{payout.program || "Acme Insurance"}</span>
+              <span class="text-[12px] font-medium text-slate-500 mb-0.5"
+                >Payer Details</span
+              >
+              <span class="text-[16px] font-bold text-[#003366]"
+                >{payout.program || "Acme Insurance"}</span
+              >
             </div>
             <div class="text-[26px] font-bold text-[#003366]">
-              {formatCurrency(payout.payableAmount)}
+              {"₹" + formatCurrency(payout.payableAmount)}
             </div>
           </div>
 
@@ -283,26 +321,38 @@
             {isProcessing ? "Processing..." : "Continue to Payment"}
           </button>
         </div>
-            {:else if step === 3}
+      {:else if step === 3}
         <!-- STEP 3: Complete Payment (Add a new card modal) -->
         <div class="flex flex-col items-center">
-          <h2 class="text-[18px] font-semibold text-[#003366] w-full text-left mb-1">
+          <h2
+            class="text-[18px] font-semibold text-[#003366] w-full text-left mb-1"
+          >
             Complete Payment
           </h2>
-          <p class="text-[12px] font-medium text-slate-500 w-full text-left mb-6">
+          <p
+            class="text-[12px] font-medium text-slate-500 w-full text-left mb-6"
+          >
             Add a new card
           </p>
 
-          <div class="w-full rounded-xl bg-slate-100 p-4 flex items-center gap-3 mb-6 border border-slate-200">
-            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+          <div
+            class="w-full rounded-xl bg-slate-100 p-4 flex items-center gap-3 mb-6 border border-slate-200"
+          >
+            <div
+              class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-600"
+            >
               <User class="h-4 w-4" />
             </div>
-            <span class="text-[14px] font-semibold text-[#0066cc]">Using as +91 8076******</span>
+            <span class="text-[14px] font-semibold text-[#0066cc]"
+              >Using as +91 8076******</span
+            >
           </div>
 
           <div class="w-full flex flex-col gap-4 mb-4">
             <div class="flex flex-col gap-1.5 w-full">
-              <label class="text-[12px] font-medium text-slate-600">Card Number</label>
+              <label class="text-[12px] font-medium text-slate-600"
+                >Card Number</label
+              >
               <input
                 type="text"
                 readonly
@@ -313,7 +363,9 @@
 
             <div class="flex gap-4 w-full">
               <div class="flex flex-col gap-1.5 flex-1 w-full">
-                <label class="text-[12px] font-medium text-slate-600">Expiry Date</label>
+                <label class="text-[12px] font-medium text-slate-600"
+                  >Expiry Date</label
+                >
                 <input
                   type="text"
                   readonly
@@ -322,7 +374,8 @@
                 />
               </div>
               <div class="flex flex-col gap-1.5 flex-1 w-full">
-                <label class="text-[12px] font-medium text-slate-600">CVV</label>
+                <label class="text-[12px] font-medium text-slate-600">CVV</label
+                >
                 <input
                   type="text"
                   value="955"
@@ -332,7 +385,9 @@
             </div>
           </div>
 
-          <label class="flex items-center gap-3 cursor-pointer mb-8 w-full group">
+          <label
+            class="flex items-center gap-3 cursor-pointer mb-8 w-full group"
+          >
             <input
               type="checkbox"
               class="hidden"
@@ -372,8 +427,7 @@
             <span>₹{formatCurrency(payout.payableAmount)}</span>
           </button>
         </div>
-
-{:else if step === 4}
+      {:else if step === 4}
         <!-- STEP 3: Complete Payment (Shifted from Step 4) -->
         <div class="flex flex-col">
           <h2 class="text-[18px] font-semibold text-[#003366] mb-1">
@@ -419,15 +473,16 @@
               </div>
               <div class="flex justify-between items-center text-[12px]">
                 <span class="font-medium text-slate-500">Applicable GST</span>
-                <span class="font-semibold text-slate-800 mt-0">- {payout.gst}</span
-                >
+                <span class="font-semibold text-slate-800 mt-0"> ₹0.00</span>
               </div>
               <!-- Dotted divider -->
               <div
                 class="w-full border-t border-dashed border-slate-200 my-1"
               ></div>
               <div class="flex justify-between items-center">
-                <span class="font-semibold text-slate-800 text-[14px]">Total</span>
+                <span class="font-semibold text-slate-800 text-[14px]"
+                  >Total</span
+                >
                 <span class="font-semibold text-[#0066cc] text-[18px]"
                   >₹{formatCurrency(payout.payableAmount)}</span
                 >
@@ -476,9 +531,9 @@
                 bind:value={otpValues[i]}
                 oninput={(e) => {
                   // Only allow numbers
-                  const val = e.currentTarget.value.replace(/[^0-9]/g, '');
+                  const val = e.currentTarget.value.replace(/[^0-9]/g, "");
                   otpValues[i] = val;
-                  
+
                   // Auto-focus next input
                   if (val && i < 5) {
                     const nextInput = e.currentTarget.nextElementSibling;
@@ -487,13 +542,13 @@
                 }}
                 onkeydown={(e) => {
                   // Handle backspace to focus previous input
-                  if (e.key === 'Backspace' && !otpValues[i] && i > 0) {
+                  if (e.key === "Backspace" && !otpValues[i] && i > 0) {
                     const prevInput = e.currentTarget.previousElementSibling;
                     if (prevInput) {
                       (prevInput as HTMLInputElement).focus();
                       // Small delay to ensure cursor is at end and it deletes correctly
                       setTimeout(() => {
-                         otpValues[i-1] = '';
+                        otpValues[i - 1] = "";
                       }, 0);
                     }
                   }
@@ -513,7 +568,7 @@
           <button
             class="w-full h-11 rounded-xl bg-[#0066cc] text-[14px] font-semibold text-white shadow-sm hover:bg-[#0052a3] transition-all cursor-pointer flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             onclick={handleNext}
-            disabled={isProcessing || otpValues.join('').length < 6}
+            disabled={isProcessing || otpValues.join("").length < 6}
           >
             {isProcessing ? "Verifying..." : "Verify & Complete Payment"}
           </button>
@@ -554,8 +609,10 @@
                 >Txn: {payout.id}</span
               >
             </div>
-            <div class="text-[24px] font-semibold text-[#003366] tracking-tight">
-              {formatCurrency(payout.payableAmount)}
+            <div
+              class="text-[24px] font-semibold text-[#003366] tracking-tight"
+            >
+              ₹{formatCurrency(payout.payableAmount)}
             </div>
           </div>
 
@@ -579,9 +636,9 @@
           <!-- Final Button - Professional Blue -->
           <button
             class="w-full h-11 rounded-xl bg-[#0066cc] flex items-center justify-between px-6 text-[14px] font-semibold text-white transition-all hover:bg-[#0052a3] cursor-pointer shadow-sm"
-            onclick={onClose}
+            onclick={handleReturnDashboard}
           >
-            <span>{formatCurrency(payout.payableAmount)}</span>
+            <span>₹{formatCurrency(payout.payableAmount)}</span>
             <div class="flex items-center">
               <span>Return to Dashboard</span>
               <ArrowRight class="h-4 w-4 ml-1.5" />

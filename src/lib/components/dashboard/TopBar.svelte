@@ -5,7 +5,8 @@
   import {
     dbStore,
     acceptInvitation,
-    rejectInvitation
+    rejectInvitation,
+    syncRemoteData
   } from "$lib/state/db.svelte.js";
   import { goto } from "$app/navigation";
   import { Check, X } from "lucide-svelte";
@@ -13,7 +14,11 @@
   let isDropdownOpen = $state(false);
 
   let userNotifications = $derived(
-    dbStore.notifications.filter((n: any) => n.userId === authState.user?.id)
+    [
+      ...dbStore.notifications.filter(
+        (n: any) => n.userId === authState.user?.id
+      )
+    ].reverse()
   );
 
   let unreadCount = $derived(
@@ -27,8 +32,10 @@
     const newRole = authState.user.role === "payer" ? "payee" : "payer";
     authState.user.role = newRole;
 
-    // Trigger navigation to refresh the dashboard data context
-    goto(`/?role=${newRole}`, { invalidateAll: true });
+    // Refresh context and fetch appropriate data payload
+    syncRemoteData(authState.user.id).then(() => {
+      goto(`/?role=${newRole}`, { invalidateAll: true });
+    });
   }
 </script>
 
@@ -164,7 +171,7 @@
                       </div>
                     </div>
 
-                    {#if notification.type === "invitation"}
+                    {#if notification.type === "invitation" && !notification.read}
                       <div
                         class="ml-auto flex flex-col gap-2 self-center pl-3 border-l border-slate-100"
                       >
@@ -188,7 +195,11 @@
                         <button
                           onclick={(e) => {
                             e.stopPropagation();
-                            rejectInvitation(notification.id);
+                            rejectInvitation(
+                              notification.id,
+                              notification.programId,
+                              authState.user?.id || ""
+                            );
                           }}
                           class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all hover:bg-slate-200 hover:text-slate-600 cursor-pointer border border-slate-200 shadow-sm"
                           title="Decline Invitation"

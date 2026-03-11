@@ -8,7 +8,11 @@
   import TermsModal from "$lib/components/dashboard/TermsModal.svelte";
   import { createEventDispatcher, onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { dbStore, redeemPayout } from "$lib/state/db.svelte.js";
+  import {
+    dbStore,
+    redeemPayout,
+    syncRemoteData
+  } from "$lib/state/db.svelte.js";
 
   const dispatch = createEventDispatcher();
 
@@ -17,6 +21,7 @@
 
   let isLoading = $state(false);
   let selectedPayout = $state<any>(null);
+  let lastUserId = $state<string | undefined>(undefined);
 
   const formatCurrency = (val: number) => {
     return "₹" + val.toLocaleString("en-IN");
@@ -27,15 +32,39 @@
     authState.isAdminView ? authState.viewingAs : authState.user
   );
 
+  const isOwnedByActivePayer = (p: any) => {
+    if (!activeUser?.id) return false;
+    if (p?.payerId != null) {
+      return String(p.payerId) === String(activeUser.id);
+    }
+    if (activeUser?.name && p?.createdBy) {
+      return (
+        String(p.createdBy).toLowerCase() ===
+        String(activeUser.name).toLowerCase()
+      );
+    }
+    return false;
+  };
+
+  $effect(() => {
+    const id = activeUser?.id;
+    if (!id || id === lastUserId) return;
+    lastUserId = id;
+    isLoading = true;
+    syncRemoteData(id).finally(() => {
+      isLoading = false;
+    });
+  });
+
   // Combine active user's accessible programs for the filter
   let accessiblePrograms = $derived(
     activeUser?.role === "payer"
-      ? dbStore.programs.filter((p: any) => p.payerId === activeUser?.id)
-      : (activeUser?.role === "admin" && !authState.isAdminView)
+      ? dbStore.programs.filter((p: any) => isOwnedByActivePayer(p))
+      : activeUser?.role === "admin" && !authState.isAdminView
         ? dbStore.programs
         : dbStore.programs.filter((p: any) =>
-          p.enrolledPayees.includes(activeUser?.id || "")
-        )
+            p.enrolledPayees.includes(activeUser?.id || "")
+          )
   );
 
   let programOptions = $derived([
@@ -45,14 +74,16 @@
 
   // Map Recent Payouts globally from the Mock DB to track Redemption Mutability instantly across the Dashboard view
   let mappedPayouts = $derived(
-    [...dbStore.payouts]
-      .sort(
-        (a: any, b: any) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-      )
+    (activeUser?.role === "payer" || activeUser?.role === "payee"
+      ? [...dbStore.payouts].reverse()
+      : [...dbStore.payouts].sort(
+          (a: any, b: any) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+    )
       .filter((p: any) => {
         const authMatch =
-          (activeUser?.role === "admin" && !authState.isAdminView)
+          activeUser?.role === "admin" && !authState.isAdminView
             ? true
             : activeUser?.role === "payee"
               ? p.userId === activeUser?.id
@@ -60,11 +91,13 @@
         if (!authMatch) return false;
 
         const statusMatch =
-          (activeUser?.role === "admin" && !authState.isAdminView)
+          activeUser?.role === "admin" && !authState.isAdminView
             ? p.status === "Ready to redeem"
             : activeUser?.role === "payee"
               ? p.status === "Settled" || p.status === "Redeemed"
-              : p.status === "Ready to redeem" || p.status === "Redeemed" || p.status === "Pending";
+              : p.status === "Ready to redeem" ||
+                p.status === "Redeemed" ||
+                p.status === "Pending";
 
         // Program filter
         let programMatch = true;
@@ -90,14 +123,18 @@
         );
         const payerName = payerUser
           ? payerUser.businessName || payerUser.name
-          : "Unknown Payer";
+          : program?.createdBy ||
+            program?.payerName ||
+            p.payerName ||
+            "Unknown Payer";
 
         return {
           dbId: p.id,
+          payoutId: p.payoutId,
           id: p.claimNo,
           name: activeUser?.role === "payee" ? payerName : p.providerName,
           provider: activeUser?.role === "payee" ? payerName : p.providerName, // Fallback for the modal
-          category: "Medical",
+          category: program?.name || "Unknown Program",
           amount: "₹" + p.amount,
           payableAmount: "₹" + p.amount, // Fallback for the modal
           status: p.status,
@@ -124,7 +161,7 @@
       const isAuthorized =
         activeUser?.role === "payer"
           ? accessiblePrograms.some((prog: any) => prog.id === p.programId)
-          : (activeUser?.role === "admin" && !authState.isAdminView)
+          : activeUser?.role === "admin" && !authState.isAdminView
             ? true
             : p.userId === activeUser?.id;
       return isRedeemed && isAuthorized;
@@ -134,32 +171,123 @@
 
   let payeeMetrics = $derived({
     totalPayout: mappedPayouts.reduce((sum: number, p: any) => {
-      const amt = parseInt(p.amount.replace(/[^0-9]/g, "")) || 0;
-      return sum + amt;
+      if (p.status === "Redeemed" || p.status === "Settled") {
+        const amt = parseInt(p.amount.replace(/[^0-9]/g, "")) || 0;
+        return sum + amt;
+      }
+      return sum;
     }, 0),
     // Only payee needs to total pending and settled explicitly like this here
     newPayouts: dbStore.payouts.filter(
-      (p: any) => ((activeUser?.role === "admin" && !authState.isAdminView) || p.userId === activeUser?.id) && p.status === "Ready to redeem"
+      (p: any) =>
+        ((activeUser?.role === "admin" && !authState.isAdminView) ||
+          p.userId === activeUser?.id) &&
+        p.status === "Ready to redeem"
     ).length,
     settledPayouts: dbStore.payouts.filter(
-      (p: any) => ((activeUser?.role === "admin" && !authState.isAdminView) || p.userId === activeUser?.id) && p.status === "Settled"
+      (p: any) =>
+        ((activeUser?.role === "admin" && !authState.isAdminView) ||
+          p.userId === activeUser?.id) &&
+        p.status === "Settled"
     ).length,
-    activePayers:
-      new Set(accessiblePrograms.map((p: any) => p.payerId)).size || 0
+    activePayers: accessiblePrograms.length
+  });
+
+  const pctChange = (current: number, previous: number) => {
+    if (previous === 0 && current === 0) return 0;
+    if (previous === 0) return 100;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  const parseDate = (value: any) => {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const inWindow = (d: Date, start: Date, end: Date) =>
+    d.getTime() >= start.getTime() && d.getTime() <= end.getTime();
+
+  let payeeTrends = $derived.by(() => {
+    const now = new Date();
+    const startCurrent = new Date(now);
+    startCurrent.setDate(startCurrent.getDate() - 29);
+    const endCurrent = now;
+    const startPrev = new Date(startCurrent);
+    startPrev.setDate(startPrev.getDate() - 30);
+    const endPrev = new Date(startCurrent);
+    endPrev.setDate(endPrev.getDate() - 1);
+
+    const relevant = dbStore.payouts.filter(
+      (p: any) =>
+        (activeUser?.role === "admin" && !authState.isAdminView) ||
+        p.userId === activeUser?.id
+    );
+
+    let currentTotal = 0;
+    let prevTotal = 0;
+    let currentNew = 0;
+    let prevNew = 0;
+    let currentSettled = 0;
+    let prevSettled = 0;
+    const currentPayers = new Set<string>();
+    const prevPayers = new Set<string>();
+
+    relevant.forEach((p: any) => {
+      const d = parseDate(p.date);
+      if (!d) return;
+      const amt = parseInt(String(p.amount).replace(/[^0-9]/g, "")) || 0;
+      const program = dbStore.programs.find(
+        (prog: any) => prog.id === p.programId
+      );
+      const payerId = String(p.payerId || program?.payerId || "");
+
+      if (inWindow(d, startCurrent, endCurrent)) {
+        if (p.status === "Redeemed" || p.status === "Settled")
+          currentTotal += amt;
+        if (p.status === "Ready to redeem") currentNew += 1;
+        if (p.status === "Settled") currentSettled += 1;
+        if (payerId) currentPayers.add(payerId);
+      } else if (inWindow(d, startPrev, endPrev)) {
+        if (p.status === "Redeemed" || p.status === "Settled") prevTotal += amt;
+        if (p.status === "Ready to redeem") prevNew += 1;
+        if (p.status === "Settled") prevSettled += 1;
+        if (payerId) prevPayers.add(payerId);
+      }
+    });
+
+    return {
+      totalPayout: pctChange(currentTotal, prevTotal),
+      newPayouts: pctChange(currentNew, prevNew),
+      settledPayouts: pctChange(currentSettled, prevSettled),
+      activePayers: pctChange(currentPayers.size, prevPayers.size)
+    };
   });
 
   // Top payers metric (only for payee view)
   let topPayers = $derived.by(() => {
     if (activeUser?.role === "payer") return [];
 
-    // Group payouts by providerName
+    // Group payouts by payer name where possible
     const payerTotals: Record<string, number> = {};
     let totalAll = 0;
 
     dbStore.payouts.forEach((p: any) => {
-      if ((activeUser?.role === "admin" && !authState.isAdminView) || p.userId === activeUser?.id) {
+      if (
+        (activeUser?.role === "admin" && !authState.isAdminView) ||
+        p.userId === activeUser?.id
+      ) {
+        if (p.status !== "Redeemed" && p.status !== "Settled") return;
+
+        const program = dbStore.programs.find(
+          (prog: any) => prog.id === p.programId
+        );
+        const payerLabel =
+          p.payerName ||
+          program?.createdBy ||
+          program?.payerName ||
+          p.providerName;
         const amt = parseInt(String(p.amount).replace(/[^0-9]/g, "")) || 0;
-        payerTotals[p.providerName] = (payerTotals[p.providerName] || 0) + amt;
+        payerTotals[payerLabel] = (payerTotals[payerLabel] || 0) + amt;
         totalAll += amt;
       }
     });
@@ -181,7 +309,7 @@
     ? 'bg-white'
     : 'bg-slate-50'} relative"
 >
-  {#if activeUser?.role === "payee" && !activeUser?.hasAcceptedTerms}
+  {#if false}
     <TermsModal />
   {/if}
 
@@ -316,30 +444,26 @@
             <MetricCard
               title="Total Payout"
               value={formatCurrency(payeeMetrics.totalPayout)}
-              trend="+18.2%"
-              trendUp={true}
               variant="primary"
               width="w-full lg:w-[25%]"
             />
             <MetricCard
               title="New Payout"
               value={payeeMetrics.newPayouts}
-              trend="+3"
-              trendUp={true}
               width="w-full lg:w-[20%]"
             />
             <MetricCard
               title="Settled Payouts"
               value={payeeMetrics.settledPayouts}
-              trend="+5"
-              trendUp={true}
               width="w-full lg:w-[20%]"
             />
             <MetricCard
-              title={activeUser?.role === "admin" ? "Total Programs" : "Active Payers"}
-              value={activeUser?.role === "admin" ? accessiblePrograms.length : payeeMetrics.activePayers}
-              trend="+1"
-              trendUp={true}
+              title={activeUser?.role === "admin"
+                ? "Total Programs"
+                : "Active Payers"}
+              value={activeUser?.role === "admin"
+                ? accessiblePrograms.length
+                : payeeMetrics.activePayers}
               width="w-full lg:w-[20%]"
             />
           </div>

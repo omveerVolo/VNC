@@ -2,14 +2,27 @@
   import { Search, ChevronLeft, UserCog } from "lucide-svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { dbStore } from "$lib/state/db.svelte.js";
+  import { apiCall, dbStore } from "$lib/state/db.svelte.js";
   import { startViewing } from "$lib/state/auth.svelte.js";
 
   let searchQuery = $state("");
   let roleFilter = $derived($page.url.searchParams.get("role") || "payee");
 
+  let payeeUsers = $state<any[]>([]);
+
+  $effect(() => {
+    if (roleFilter !== "payee") return;
+    apiCall("/payees")
+      .then((res) => {
+        payeeUsers = Array.isArray(res) ? res : res?.payees || [];
+      })
+      .catch(() => {
+        payeeUsers = [];
+      });
+  });
+
   let filteredUsers = $derived(
-    dbStore.users
+    (roleFilter === "payee" ? payeeUsers : dbStore.users)
       .filter((u: any) => u.role === roleFilter)
       .filter((u: any) => {
         if (!searchQuery) return true;

@@ -10,12 +10,23 @@
     authState.isAdminView ? authState.viewingAs : authState.user
   );
 
+  const isOwnedByActivePayer = (p: any) => {
+    if (!activeUser?.id) return false;
+    if (p?.payerId != null) {
+      return String(p.payerId) === String(activeUser.id);
+    }
+    if (activeUser?.name && p?.createdBy) {
+      return String(p.createdBy).toLowerCase() === String(activeUser.name).toLowerCase();
+    }
+    return false;
+  };
+
   // Derive programs from global state, filtering for the current user's role mapping
   let programs = $derived(
     dbStore.programs.filter((p: any) => {
       if (!activeUser) return false;
       if (activeUser.role === "admin") return true;
-      if (activeUser.role === "payer") return p.payerId === activeUser.id;
+      if (activeUser.role === "payer") return isOwnedByActivePayer(p);
       // Payees see programs they are enrolled in
       return (
         p.enrolledPayees.includes(activeUser.id) ||

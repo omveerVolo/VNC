@@ -13,7 +13,10 @@
 
   // Feed settled payouts from the reactive mock database
   let payouts = $derived(
-    dbStore.payouts
+    (activeUser?.role === "payer"
+      ? [...dbStore.payouts].reverse()
+      : [...dbStore.payouts]
+    )
       .filter((p: any) => p.status === "Settled")
       .filter((p: any) =>
         activeUser?.role === "payee" ? p.userId === activeUser.id : true
@@ -36,14 +39,17 @@
         );
         const payerName = payerUser
           ? payerUser.businessName || payerUser.name
-          : "Unknown Payer";
+          : program?.createdBy ||
+            program?.payerName ||
+            p.payerName ||
+            "Unknown Payer";
 
         return {
           id: p.claimNo,
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : p.providerName,
           approvedAmount: `₹${p.amount}`,
-          gst: "₹1,250",
+          gst: "None",
           payableAmount: `₹${p.amount}`,
           status: p.status,
           utr: `HDFCR${Math.abs(hashString(p.claimNo)).toString().padStart(9, "0")}`

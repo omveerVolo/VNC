@@ -18,18 +18,11 @@
     <h3 class="text-[13px] font-semibold text-slate-900">
       {title}
     </h3>
-    {#if trend}
-      <span
-        class="text-[12px] font-semibold {trendUp
-          ? 'text-[#00c04b]'
-          : 'text-rose-500'}"
-      >
-        {trend}
-      </span>
-    {/if}
   </div>
   <div class="flex w-full items-end">
-    <p class="text-[36px] font-semibold tracking-tight text-[#5b4897] leading-none">
+    <p
+      class="text-[36px] font-semibold tracking-tight text-[#5b4897] leading-none"
+    >
       {value}
     </p>
   </div>

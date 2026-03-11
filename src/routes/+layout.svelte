@@ -1,7 +1,8 @@
 <script lang="ts">
   import { page } from "$app/stores";
   import Navigation from "$lib/components/Navigation.svelte";
-  import { logout } from "$lib/state/auth.svelte.js";
+  import { authState } from "$lib/state/auth.svelte.js";
+  import { syncRemoteData } from "$lib/state/db.svelte.js";
   import "./layout.css";
 
   let { children } = $props();
@@ -10,6 +11,19 @@
   let isAuthRoute = $derived(
     $page.url.pathname === "/login" || $page.url.pathname === "/signup"
   );
+
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+  let lastUserId = $state<string | undefined>(undefined);
+
+  $effect(() => {
+    if (isAuthRoute) return;
+    const id = activeUser?.id;
+    if (!id || id === lastUserId) return;
+    lastUserId = id;
+    syncRemoteData(id).catch(console.error);
+  });
 </script>
 
 <div class="flex min-h-screen bg-slate-50">

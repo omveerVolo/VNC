@@ -23,8 +23,11 @@
 
   // Feed redeemed payouts from the reactive mock database
   let filteredPayouts = $derived(
-    dbStore.payouts
-      .filter((p: any) => p.status === "Redeemed")
+    (activeUser?.role === "payer"
+      ? [...dbStore.payouts].reverse()
+      : [...dbStore.payouts]
+    )
+      .filter((p: any) => p.status === "Redeemed" || p.status === "Settled")
       .filter((p: any) =>
         activeUser?.role === "payee" ? p.userId === activeUser.id : true
       )
@@ -46,14 +49,17 @@
         );
         const payerName = payerUser
           ? payerUser.businessName || payerUser.name
-          : "Unknown Payer";
+          : program?.createdBy ||
+            program?.payerName ||
+            p.payerName ||
+            "Unknown Payer";
 
         return {
           id: p.claimNo,
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : p.providerName,
           approvedAmount: `₹${p.amount}`,
-          gst: "₹1,250",
+          gst: "None",
           payableAmount: `₹${p.amount}`,
           status: p.status
         };
@@ -179,7 +185,7 @@
                   class="bg-[#e8f8f5] text-[#1a7f71] px-2.5 py-1 rounded-md text-[11px] font-semibold tracking-wide flex items-center justify-center gap-1 border border-[#8cdccb]"
                 >
                   <CheckCircle2 class="h-3 w-3 stroke-[2.5]" />
-                  Redeemed
+                  {payout.status || "Redeemed"}
                 </div>
               </div>
             </div>

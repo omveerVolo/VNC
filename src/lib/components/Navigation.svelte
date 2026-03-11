@@ -214,7 +214,7 @@
                     }}
                     class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
                   >
-                    Approved Payments
+                    Approve Payouts
                   </a>
                   <a
                     href="/payouts/redeemed"
@@ -234,7 +234,7 @@
                     }}
                     class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
                   >
-                    Settled Payments
+                    Settled Payouts
                   </a>
                 {:else}
                   <!-- Standard Payee Dropdown -->
@@ -266,7 +266,7 @@
                     }}
                     class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
                   >
-                    Settled Payments
+                    Settled Payouts
                   </a>
                   <a
                     href="/payouts/approvals"
@@ -276,7 +276,7 @@
                     }}
                     class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
                   >
-                    Approval Payments
+                    Approve payouts
                   </a>
                 {/if}
               </div>
@@ -300,7 +300,7 @@
                   }}
                   class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
                 >
-                  Create Payments
+                  Create Payouts
                 </a>
               </div>
             </div>

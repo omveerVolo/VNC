@@ -2,7 +2,11 @@
   import { Search, CheckCircle2, Download, Clock } from "@lucide/svelte";
   import RedeemModal from "$lib/components/payouts/RedeemModal.svelte";
 
-  import { dbStore, approvePayerPayout } from "$lib/state/db.svelte.js";
+  import {
+    apiCall,
+    dbStore,
+    approvePayerPayout
+  } from "$lib/state/db.svelte.js";
   import { authState } from "$lib/state/auth.svelte.js";
 
   // Identify if the actual logged-in user is an admin
@@ -32,12 +36,20 @@
 
   // Derived state reading exclusively payloads that need action
   let filteredPayouts = $derived(
-    dbStore.payouts
+    (activeUser?.role === "payer"
+      ? [...dbStore.payouts].reverse()
+      : [...dbStore.payouts]
+    )
       .filter((p: any) => {
         // ADMIN MODE: Show redeemable items
         if (isInternalAdmin) {
           const statusMatch = p.status === "Ready to redeem";
           if (!statusMatch) return false;
+
+          // Admin should only review/see items that were above the auto-redeem limit (51,000)
+          const cleanAmount = String(p.amount || "0").replace(/[₹,]/g, "");
+          const amountValue = parseInt(cleanAmount, 10) || 0;
+          if (amountValue <= 51000) return false;
 
           // If impersonating a specific payee, restrict to their items
           if (authState.isAdminView && authState.viewingAs) {
@@ -78,17 +90,21 @@
         );
         const payerName = payerUser
           ? payerUser.businessName || payerUser.name
-          : "Unknown Payer";
+          : program?.createdBy ||
+            program?.payerName ||
+            p.payerName ||
+            "Unknown Payer";
 
         return {
           dbId: p.id, // Keep a reference to the global mutable ID
+          payoutId: p.payoutId,
           id: p.claimNo,
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : p.providerName,
           patientName: p.patientName,
           createdAt: p.date,
           approvedAmount: `₹${p.amount}`,
-          gst: "₹1,250",
+          gst: "None",
           payableAmount: `₹${p.amount}`,
           status: p.status
         };
@@ -109,19 +125,27 @@
   function toggleSelectAll() {
     isAllSelected = !isAllSelected;
     if (isAllSelected) {
-      selectedPayoutIds = filteredPayouts.map((p: any) => p.dbId);
+      selectedPayoutIds = filteredPayouts.map((p: any) => p.payoutId);
     } else {
       selectedPayoutIds = [];
     }
   }
 
-  function handleApprove() {
+  async function handleApprove() {
     if (selectedPayoutIds.length > 0) {
-      // Payer approves
-      for (const id of selectedPayoutIds) {
-        approvePayerPayout(id);
+      // Payer approves via API
+      const res = await apiCall("/payouts/status", "PUT", {
+        payoutIds: selectedPayoutIds
+      });
+      if (res !== null) {
+        for (const payoutId of selectedPayoutIds) {
+          const local = filteredPayouts.find(
+            (p: any) => p.payoutId === payoutId
+          );
+          if (local) approvePayerPayout(local.dbId);
+        }
+        showSuccessModal = true;
       }
-      showSuccessModal = true;
     }
   }
 
@@ -142,7 +166,7 @@
 </script>
 
 <svelte:head>
-  <title>{isInternalAdmin ? 'Approved' : 'Approve'} Payments - HDFC Bank</title>
+  <title>{isInternalAdmin ? "Approved" : "Approve"} Payments - HDFC Bank</title>
 </svelte:head>
 
 <div
@@ -182,10 +206,10 @@
           <span class="text-[#3b2b73]">redeem</span> your approved claims
         {:else}
           <span class="text-[#3b2b73]">Approve</span> your
-          <span class="text-[#3b2b73]">payments</span>
+          <span class="text-[#3b2b73]">Payouts</span>
         {/if}
       </h1>
-      
+
       {#if !isInternalAdmin}
         <button
           onclick={toggleSelectAll}
@@ -303,28 +327,28 @@
                     <input
                       type="checkbox"
                       class="hidden"
-                      checked={selectedPayoutIds.includes(payout.dbId)}
+                      checked={selectedPayoutIds.includes(payout.payoutId)}
                       onchange={(e) => {
                         if (e.currentTarget.checked) {
                           selectedPayoutIds = [
                             ...selectedPayoutIds,
-                            payout.dbId
+                            payout.payoutId
                           ];
                         } else {
                           selectedPayoutIds = selectedPayoutIds.filter(
-                            (id) => id !== payout.dbId
+                            (id) => id !== payout.payoutId
                           );
                         }
                       }}
                     />
                     <div
                       class="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border {selectedPayoutIds.includes(
-                        payout.dbId
+                        payout.payoutId
                       )
                         ? 'border-[#1a7f71] bg-white'
                         : 'border-slate-300 bg-white group-hover:border-[#1a7f71]'} transition-colors"
                     >
-                      {#if selectedPayoutIds.includes(payout.dbId)}
+                      {#if selectedPayoutIds.includes(payout.payoutId)}
                         <CheckCircle2
                           class="h-[22px] w-[22px] text-[#1a7f71]"
                         />

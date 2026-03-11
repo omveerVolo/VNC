@@ -4,7 +4,7 @@
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
   import { CheckCircle2, UploadCloud, FileText } from "lucide-svelte";
   import { authState, login } from "$lib/state/auth.svelte.js";
-  import { registerUser } from "$lib/state/db.svelte.js";
+  import { apiCall } from "$lib/state/db.svelte.js";
 
   let step = $state(1);
 
@@ -52,8 +52,19 @@
     }
   }
 
-  function handleSubmit() {
-    // We only simulate completion, skipping actual registration logic for demo flow
+  async function handleSubmit() {
+    try {
+      await apiCall("/add-payees", "POST", {
+        name: contactName || businessName,
+        email: email,
+        password: "password123", // Default for demo as specified
+        businessName: businessName,
+        category: category || "Other",
+        hasAcceptedTerms: docsChecked
+      });
+    } catch (err) {
+      console.error("Signup failed", err);
+    }
     step = 6;
   }
 

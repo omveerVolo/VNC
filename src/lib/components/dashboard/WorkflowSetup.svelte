@@ -1,261 +1,294 @@
 <script lang="ts">
-  import { Users, UserPlus, X, Trash2, PlusCircle } from "lucide-svelte";
+  import {
+    Users,
+    UserPlus,
+    Trash2,
+    PlusCircle,
+    CheckCircle
+  } from "lucide-svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
   import { createEventDispatcher } from "svelte";
+  import { dbStore } from "$lib/state/db.svelte.js";
 
   const dispatch = createEventDispatcher();
 
-  // "approval_always" or "auto_limit"
-  let selectedWorkflowType = $state<string | null>(null);
-  let step = $state(1);
+  // Accordion & View State
+  let isApprovalAlwaysExpanded = $state(false);
+  let isAmountExceptionExpanded = $state(false);
+  let isSuccess = $state(false);
 
   // Form State
+  let availablePrograms = $derived([
+    "All Programs",
+    ...dbStore.programs.map((p: any) => p.name)
+  ]);
+  let selectedProgram = $state("All Programs");
   let firstApprovalBy = $state("Manager");
-  let conditionField = $state("Amount more than");
   let conditionOperator = $state("Select");
-  let conditionValue = $state("10,000");
-  let redeemEntity = $state("surfPool");
+  let conditionValue = $state("0");
+  let redeemEntity = $state("Volo");
   let redeemRole = $state("Ops");
 
-  function handleNext() {
-    if (step === 1 && selectedWorkflowType) {
-      step = 2;
-    }
-  }
-
   function handleSave() {
-    // In reality this would dispatch the payload to an API
-    dispatch("save");
+    isSuccess = true;
   }
 </script>
 
-<div class="flex items-start w-full transition-all">
-  <!-- Page Content -->
-  <div
-    class="relative w-full max-w-4xl rounded-[32px] bg-white p-10 shadow-sm border border-slate-200 overflow-visible min-h-[600px] flex flex-col"
-  >
-    <!-- Header -->
-    <div class="mb-10 w-full pl-2 pr-6">
-      <h2
-        class="text-[34px] font-black tracking-tight text-slate-900 leading-none"
+<div
+  class="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full transition-all"
+>
+  {#if isSuccess}
+    <!-- SUCCESS SCREEN -->
+    <div
+      class="relative w-full max-w-[500px] rounded-[32px] bg-white p-16 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-200 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-300"
+    >
+      <div
+        class="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 border-4 border-white shadow-[0_0_15px_rgba(0,102,204,0.15)] bg-gradient-to-tr from-blue-50 to-white"
       >
-        New Workflow Rule
+        <CheckCircle
+          class="h-10 w-10 text-[#0066cc]"
+          strokeWidth={2.5}
+        />
+      </div>
+      <h2
+        class="text-[28px] font-semibold tracking-tight text-[#003366] leading-tight"
+      >
+        Approval workflow<br />configured successfully.
       </h2>
-      <p class="mt-3 text-[15px] font-medium text-slate-500">
-        Set approval workflow rules below
-      </p>
     </div>
+  {:else}
+    <!-- SETUP SCREEN -->
+    <div
+      class="relative w-full max-w-[750px] rounded-[32px] bg-white p-10 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-200 min-h-[500px] flex flex-col"
+    >
+      <!-- Header -->
+      <div class="mb-8 w-full">
+        <h2
+          class="text-[24px] font-bold tracking-tight text-slate-900 leading-none"
+        >
+          New Workflow Rule
+        </h2>
+        <p class="mt-2.5 text-[13px] font-semibold text-slate-400">
+          Set approval workflow rules below
+        </p>
+      </div>
 
-    <!-- Scrollable Body -->
-    <div class="flex-1 w-full flex flex-col px-2">
-      <h3 class="font-semibold text-sm text-slate-900 mb-4">
-        Set Approval Workflow
-      </h3>
+      <div class="flex-1 w-full flex flex-col">
+        <!-- Program Selector -->
+        <div class="mb-8 flex flex-col gap-2 relative z-[60]">
+          <h3 class="font-bold text-[13px] text-slate-900">Select Program</h3>
+          <CustomSelect
+            id="programSelect"
+            bind:value={selectedProgram}
+            options={availablePrograms}
+          />
+        </div>
 
-      {#if step === 1}
-        <!-- Step 1: Selection Cards -->
-        <div class="grid grid-cols-1 gap-4">
-          <!-- Always Needed Selection -->
-          <button
-            onclick={() => (selectedWorkflowType = "approval_always")}
-            class="flex w-full items-center gap-4 rounded-2xl border {selectedWorkflowType ===
-            'approval_always'
-              ? 'border-[#7d326f] bg-[#ebddef]/30 ring-1 ring-[#7d326f]/20'
-              : 'border-slate-200 bg-white hover:border-slate-300'} p-5 transition-all text-left"
+        <h3 class="font-bold text-[13px] text-slate-900 mb-3">
+          Set Approval Workflow
+        </h3>
+
+        <!-- Accordion container -->
+        <div
+          class="flex flex-col gap-3 rounded-[12px] border border-slate-300 overflow-hidden bg-white"
+        >
+          <!-- Always Needed Selection Item -->
+          <div
+            class="flex flex-col w-full transition-all {isApprovalAlwaysExpanded
+              ? 'pb-2'
+              : ''}"
           >
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#ebddef] text-[#7d326f]"
+            <button
+              onclick={() =>
+                (isApprovalAlwaysExpanded = !isApprovalAlwaysExpanded)}
+              class="flex w-full items-center gap-4 bg-white p-4 transition-all text-left cursor-pointer"
             >
-              <Users class="h-6 w-6" />
-            </div>
-            <span class="text-[17px] font-semibold text-slate-900"
-              >Approval always needed</span
-            >
-          </button>
+              <div
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-white"
+              >
+                <Users
+                  class="h-6 w-6"
+                  strokeWidth={2}
+                />
+              </div>
+              <span class="text-[15px] font-bold text-slate-900">
+                Approval always needed
+              </span>
+            </button>
+
+            <!-- Expanded Config -->
+            {#if isApprovalAlwaysExpanded}
+              <div
+                class="px-5 pt-2 pb-4 animate-in slide-in-from-top-2 duration-200"
+              >
+                <div class="flex items-center gap-4">
+                  <div
+                    class="flex h-[42px] items-center rounded-xl border border-slate-300 px-4 text-[13px] font-medium text-slate-800 bg-white min-w-[140px]"
+                  >
+                    1st Approval by
+                  </div>
+                  <div class="h-[42px] flex-1 relative z-[50]">
+                    <CustomSelect
+                      id="firstApproval"
+                      bind:value={firstApprovalBy}
+                      options={["Admin", "Manager", "Ops"]}
+                    />
+                  </div>
+                </div>
+
+                <div class="mt-4 flex flex-col gap-2 text-[13px] font-semibold">
+                  <button
+                    class="flex items-center gap-2 text-[#0066cc] hover:text-[#0052a3] w-max transition-colors cursor-pointer"
+                  >
+                    <PlusCircle class="h-4 w-4" /> Add another level of approval
+                  </button>
+                  <button
+                    onclick={() =>
+                      (isAmountExceptionExpanded = !isAmountExceptionExpanded)}
+                    class="flex items-center gap-2 text-slate-700 hover:text-slate-900 w-max transition-colors cursor-pointer"
+                  >
+                    <PlusCircle class="h-4 w-4" /> Add amount exception
+                  </button>
+                </div>
+
+                <!-- Exception Block -->
+                {#if isAmountExceptionExpanded}
+                  <div
+                    class="mt-5 rounded-2xl bg-slate-100 border border-slate-200 p-5 relative animate-in fade-in duration-200"
+                  >
+                    <button
+                      onclick={() => (isAmountExceptionExpanded = false)}
+                      class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-rose-500 transition-colors p-1.5 cursor-pointer"
+                    >
+                      <Trash2 class="h-5 w-5" />
+                    </button>
+
+                    <div class="flex flex-col gap-0 w-[calc(100%-24px)]">
+                      <!-- If Condition -->
+                      <div class="flex items-center gap-6 w-full h-[68px]">
+                        <span
+                          class="w-[40px] text-[15px] font-bold text-slate-800"
+                          >If</span
+                        >
+                        <div class="flex flex-1 gap-6 items-center w-full">
+                          <!-- <div
+                            class="text-[15px] font-bold text-[#1f2937] whitespace-nowrap min-w-[140px]"
+                          >
+                            Amount more than
+                          </div> -->
+                          <div class="flex-1 h-[46px] relative z-[45]">
+                            <CustomSelect
+                              id="amountCondition"
+                              bind:value={conditionOperator}
+                              options={["Select", "Is Limit", "Equals"]}
+                            />
+                          </div>
+                          <div class="flex-1 h-[46px]">
+                            <input
+                              type="text"
+                              bind:value={conditionValue}
+                              class="w-full h-full bg-white border border-slate-300 rounded-[10px] px-4 text-[14px] font-medium text-slate-800 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        class="w-full border-t border-slate-200/60 my-5 mt-6 mb-3"
+                      ></div>
+
+                      <!-- Then Condition -->
+                      <div class="flex items-center gap-6 w-full min-h-[68px]">
+                        <span
+                          class="w-[40px] text-[15px] font-bold text-slate-800 pt-[18px]"
+                          >Then</span
+                        >
+                        <div
+                          class="flex flex-1 gap-6 items-center flex-wrap sm:flex-nowrap w-full"
+                        >
+                          <div
+                            class="text-[15px] font-bold text-[#1f2937] whitespace-nowrap min-w-[140px] pt-[18px]"
+                          >
+                            Redeem by
+                          </div>
+
+                          <div
+                            class="flex-1 flex flex-col gap-1.5 w-full relative z-[40]"
+                          >
+                            <label
+                              for="redeemEntity"
+                              class="text-[13px] font-semibold text-[#64748b]"
+                              >Entity</label
+                            >
+                            <div class="h-[46px]">
+                              <CustomSelect
+                                id="redeemEntity"
+                                bind:value={redeemEntity}
+                                options={[
+                                  "Volo",
+                                  "HDFC",
+                                  "External",
+                                  "Partner"
+                                ]}
+                              />
+                            </div>
+                          </div>
+
+                          <div
+                            class="flex-1 flex flex-col gap-1.5 w-full relative z-[35]"
+                          >
+                            <label
+                              for="redeemRole"
+                              class="text-[13px] font-semibold text-[#64748b]"
+                              >Entity</label
+                            >
+                            <div class="h-[46px]">
+                              <CustomSelect
+                                id="redeemRole"
+                                bind:value={redeemRole}
+                                options={["Ops", "Admin", "Reviewer"]}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+
+          <div class="h-px w-full bg-slate-200"></div>
 
           <!-- Auto Limit Selection -->
           <button
-            onclick={() => (selectedWorkflowType = "auto_limit")}
-            class="flex w-full items-center gap-4 rounded-2xl border {selectedWorkflowType ===
-            'auto_limit'
-              ? 'border-[#7d326f] bg-[#ebddef]/30 ring-1 ring-[#7d326f]/20'
-              : 'border-slate-200 bg-white hover:border-slate-300'} p-5 transition-all text-left"
+            class="flex w-full items-center gap-4 bg-white p-4 transition-all text-left cursor-pointer"
           >
             <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#ebddef] text-[#7d326f]"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-white"
             >
-              <UserPlus class="h-6 w-6" />
+              <UserPlus
+                class="h-6 w-6"
+                strokeWidth={2}
+              />
             </div>
-            <span class="text-[17px] font-semibold text-slate-900"
-              >Auto approve up to a limit, then seek approval</span
-            >
+            <span class="text-[15px] font-bold text-slate-900">
+              Auto approve up to a limit, then seek approval
+            </span>
           </button>
         </div>
-      {:else if step === 2 && selectedWorkflowType === "approval_always"}
-        <!-- Step 2: Configuration Body -->
-        <div class="flex flex-col gap-4">
-          <!-- Big Container Wrapper -->
-          <div
-            class="w-full rounded-[24px] border border-slate-200 p-6 flex flex-col bg-white"
-          >
-            <div class="flex w-full items-center gap-4 mb-6">
-              <div
-                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#ebddef] text-[#7d326f]"
-              >
-                <Users class="h-6 w-6" />
-              </div>
-              <span class="text-[17px] font-semibold text-slate-900"
-                >Approval always needed</span
-              >
-            </div>
+      </div>
 
-            <div class="grid grid-cols-2 gap-4 items-center">
-              <div
-                class="flex h-[52px] items-center rounded-xl border border-slate-200 px-5 text-[15px] font-medium text-slate-800"
-              >
-                1st Approval by
-              </div>
-              <div class="h-[52px] relative z-40">
-                <CustomSelect
-                  id="firstApproval"
-                  bind:value={firstApprovalBy}
-                  options={["Manager", "Director", "VP", "CFO"]}
-                />
-              </div>
-            </div>
-
-            <!-- Condition Block Overlay -->
-            <div
-              class="mt-8 rounded-2xl bg-slate-50 border border-slate-200 p-6 relative"
-            >
-              <button
-                class="absolute -right-3 top-1/2 -translate-y-1/2 text-slate-700 hover:text-rose-500 transition-colors p-2"
-              >
-                <Trash2 class="h-5 w-5" />
-              </button>
-
-              <div class="flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                  <span class="w-8 text-sm font-semibold text-slate-800"
-                    >If</span
-                  >
-
-                  <div class="grid grid-cols-3 gap-3 w-full">
-                    <div
-                      class="relative w-full h-11 flex items-center text-sm font-semibold text-slate-800"
-                    >
-                      Amount more than
-                    </div>
-                    <div class="relative w-full h-11 z-[50]">
-                      <CustomSelect
-                        id="condOp"
-                        bind:value={conditionOperator}
-                        options={["Select", "Is strictly", "Less than"]}
-                      />
-                    </div>
-                    <div class="relative w-full">
-                      <input
-                        type="text"
-                        bind:value={conditionValue}
-                        class="w-full h-11 bg-white border border-slate-300 rounded-xl px-4 text-sm font-medium text-slate-800 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f]"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div class="flex items-center justify-center py-1">
-                  {null}
-                  <!-- Spacer mapping for 'Then' -->
-                </div>
-
-                <div class="flex items-center gap-3">
-                  <span class="w-8 text-sm font-semibold text-slate-800"
-                    >Then</span
-                  >
-
-                  <div class="grid grid-cols-3 gap-3 w-full items-end">
-                    <div class="flex flex-col gap-1.5 w-full">
-                      <div
-                        class="relative w-full h-11 flex items-center text-sm font-semibold text-slate-800"
-                      >
-                        Redeem by
-                      </div>
-                    </div>
-
-                    <div class="flex flex-col gap-1.5 w-full relative z-[45]">
-                      <label
-                        for="redeemEntity"
-                        class="text-xs font-semibold text-slate-600 -translate-y-[2px]"
-                        >Entity</label
-                      >
-                      <div class="h-11">
-                        <CustomSelect
-                          id="redeemEntity"
-                          bind:value={redeemEntity}
-                          options={["SurfPool", "External", "Partner"]}
-                        />
-                      </div>
-                    </div>
-
-                    <div class="flex flex-col gap-1.5 w-full relative z-[40]">
-                      <label
-                        for="redeemRole"
-                        class="text-xs font-semibold text-slate-600 -translate-y-[2px]"
-                        >Role</label
-                      >
-                      <div class="h-11">
-                        <CustomSelect
-                          id="redeemRole"
-                          bind:value={redeemRole}
-                          options={["Ops", "Admin", "Reviewer"]}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-6 flex flex-col gap-3">
-              <button
-                class="flex items-center gap-2 text-[13px] font-semibold text-[#7d326f] hover:text-[#5b2451] hover:underline w-max transition-colors"
-              >
-                <PlusCircle class="h-4 w-4" /> Add another level of approval
-              </button>
-              <button
-                class="flex items-center gap-2 text-[13px] font-semibold text-slate-700 hover:text-slate-900 hover:underline w-max"
-              >
-                <PlusCircle class="h-4 w-4" /> Add amount exception
-              </button>
-            </div>
-          </div>
-
-          <!-- Auto Limit Container Header Mock (Inactive) -->
-          <div
-            class="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-left"
-          >
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#ebddef] text-[#7d326f]"
-            >
-              <UserPlus class="h-6 w-6" />
-            </div>
-            <span class="text-[17px] font-semibold text-slate-900"
-              >Auto approve up to a limit, then seek approval</span
-            >
-          </div>
-        </div>
-      {/if}
+      <!-- Footer Action -->
+      <div class="mt-8 flex justify-end">
+        <button
+          onclick={handleSave}
+          class="h-11 w-[120px] rounded-[10px] bg-[#5b4897] text-[14px] font-medium text-white shadow-sm transition-all hover:bg-[#4a3a7c] cursor-pointer"
+        >
+          Next
+        </button>
+      </div>
     </div>
-
-    <!-- Footer Action -->
-    <div class="mt-8 flex justify-end px-2 pt-4">
-      <button
-        onclick={step === 1 ? handleNext : handleSave}
-        disabled={step === 1 && !selectedWorkflowType}
-        class="h-12 w-32 rounded-xl bg-[#7d326f] text-sm font-semibold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#68295c] hover:shadow-lg focus:ring-2 focus:ring-[#7d326f]/50 focus:ring-offset-2 disabled:bg-slate-300 disabled:pointer-events-none disabled:transform-none cursor-pointer"
-      >
-        {step === 1 ? "Next" : "Save"}
-      </button>
-    </div>
-  </div>
+  {/if}
 </div>

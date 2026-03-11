@@ -28,6 +28,7 @@
   // Derived state to check if payer actually has programs
   const payerHasPrograms = $derived.by(() => {
     if (!authState.user) return false;
+    if (authState.user.hasData) return true;
     return authState.user.role === "payer"
       ? dbStore.programs.some((p: any) => p.payerId === authState.user?.id)
       : true; // For payees, logic is handled in DashboardView via TermsModal
@@ -50,11 +51,15 @@
 
   function handleCancel() {
     isCreatingProgram = false;
+
+    const url = new URL($page.url);
     if (
-      $page.url.searchParams.has("createProgram") ||
-      $page.url.searchParams.has("editProgram")
+      url.searchParams.has("createProgram") ||
+      url.searchParams.has("editProgram")
     ) {
-      goto("/", { replaceState: true });
+      url.searchParams.delete("createProgram");
+      url.searchParams.delete("editProgram");
+      goto(url.pathname, { replaceState: true });
     }
   }
 </script>

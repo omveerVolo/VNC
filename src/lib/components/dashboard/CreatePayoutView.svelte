@@ -3,7 +3,7 @@
   import { createEventDispatcher } from "svelte";
   import TopBar from "$lib/components/dashboard/TopBar.svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
-  import { dbStore, createPayout } from "$lib/state/db.svelte.js";
+  import { apiCall, dbStore, createPayout } from "$lib/state/db.svelte.js";
   import { authState } from "$lib/state/auth.svelte.js";
 
   const dispatch = createEventDispatcher();
@@ -39,19 +39,10 @@
   let realProgram = $derived(
     accessiblePrograms.find((p: any) => p.name === selectedProgram)
   );
+  let programPayees = $state<any[]>([]);
   let payeeOptions = $derived(
-    realProgram?.enrolledPayees
-      ? (() => {
-          const matchedOptions = dbStore.users
-            .filter(
-              (u: any) =>
-                u.role === "payee" && realProgram.enrolledPayees.includes(u.id)
-            )
-            .map((u: any) => u.businessName || u.name);
-          return matchedOptions.length > 0
-            ? matchedOptions
-            : ["No Payees Available"];
-        })()
+    programPayees.length > 0
+      ? programPayees.map((p: any) => p.businessName || p.name || p.email)
       : ["No Payees Available"]
   );
 
@@ -63,10 +54,54 @@
       selectedPayee = payeeOptions[0];
     }
   });
+
+  let selectedPayeeId = $derived.by(() => {
+    const match = programPayees.find(
+      (p: any) => (p.businessName || p.name || p.email) === selectedPayee
+    );
+    return match?.id || "";
+  });
+
+  $effect(() => {
+    const programId = realProgram?.id;
+    if (!programId) {
+      programPayees = [];
+      return;
+    }
+    apiCall(`/programs/payees?programId=${programId}`)
+      .then((res) => {
+        programPayees = res?.payees || [];
+      })
+      .catch(() => {
+        programPayees = [];
+      });
+  });
   let currency = $state("INR");
   let amount = $state("10,000");
   let payThroughCard = $state("HDFC pay");
-  let dateRange = $state("");
+  let validityOptions = ["7 Days", "1 Month", "3 Months"];
+  let selectedDateRange = $state("1 Month");
+  let showDateDropdown = $state(false);
+  let txId = $state("");
+
+  let computedDateRangeText = $derived.by(() => {
+    const start = new Date();
+    const end = new Date();
+
+    if (selectedDateRange === "7 Days") {
+      end.setDate(start.getDate() + 7);
+    } else if (selectedDateRange === "1 Month") {
+      end.setMonth(start.getMonth() + 1);
+    } else if (selectedDateRange === "3 Months") {
+      end.setMonth(start.getMonth() + 3);
+    }
+
+    const formatOpts = { month: "short", day: "numeric", year: "numeric" };
+    const startStr = start.toLocaleDateString("en-US", formatOpts);
+    const endStr = end.toLocaleDateString("en-US", formatOpts);
+
+    return `${startStr} (IST) - ${endStr} (IST)`;
+  });
 
   // Modal States
   let showPreview = $state(false);
@@ -93,7 +128,7 @@
     );
     const pid = realProgram ? realProgram.id : "prog_med_01";
 
-    createPayout(amount, pid, selectedPayee);
+    createPayout(amount, pid, selectedPayeeId, selectedPayee);
     showSuccess = false;
     dispatch("cancel"); // returns to dashboard
   }
@@ -207,30 +242,129 @@
                 class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
                 >3</span
               >
-              <h3 class="text-sm font-semibold text-slate-900">
-                Virtual Card Valid
-              </h3>
+              <h3 class="text-sm font-semibold text-slate-900">Validity</h3>
             </div>
             <div class="pl-7">
               <label
                 for="dateRange"
                 class="mb-2 block text-xs font-medium text-slate-600"
-                >Select Date Range</label
+                >Select Expiry</label
               >
-              <div class="relative w-[340px]">
-                <Calendar
-                  class="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  id="dateRange"
-                  type="text"
-                  placeholder="Dec 26, 2025 (IST) - Jan 20, 2026 (IST)"
-                  class="h-12 w-full rounded-xl border border-slate-200 pl-11 pr-10 text-xs font-medium text-slate-700 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] cursor-pointer"
-                  readonly
-                />
-                <div
-                  class="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              <!-- Custom Date Range Dropdown -->
+              <div class="relative w-[340px] mb-8">
+                <button
+                  type="button"
+                  onclick={() => (showDateDropdown = !showDateDropdown)}
+                  class="relative flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-[13px] font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] transition-all"
                 >
+                  <Calendar
+                    class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-800"
+                    strokeWidth={2.5}
+                  />
+                  <span class="truncate">{computedDateRangeText}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="text-slate-800 transition-transform {showDateDropdown
+                      ? 'rotate-180'
+                      : ''}"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+
+                {#if showDateDropdown}
+                  <div
+                    class="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
+                  >
+                    {#each validityOptions as opt}
+                      <button
+                        type="button"
+                        class="flex w-full items-center px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 hover:text-[#0066cc] {selectedDateRange ===
+                        opt
+                          ? 'bg-[#0066cc]/5 text-[#0066cc]'
+                          : 'text-slate-600'}"
+                        onclick={() => {
+                          selectedDateRange = opt;
+                          showDateDropdown = false;
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Payment Details & Transaction ID -->
+        <div class="flex flex-col gap-10">
+          <!-- 2. Payment Details -->
+          <div class="flex flex-col gap-4">
+            <div class="flex items-center gap-2">
+              <span
+                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                >2</span
+              >
+              <h3 class="text-sm font-semibold text-slate-900">
+                Payment Details
+              </h3>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 pl-7">
+              <div class="sm:col-span-1 relative flex flex-col gap-2">
+                <label
+                  for="currencyType"
+                  class="text-xs font-medium text-slate-600"
+                  >Currency type</label
+                >
+                <CustomSelect
+                  id="currencyType"
+                  bind:value={currency}
+                  options={["INR", "USD", "EUR"]}
+                />
+              </div>
+              <div class="sm:col-span-2 relative flex flex-col gap-2">
+                <label
+                  for="payableAmount"
+                  class="text-xs font-medium text-slate-600"
+                  >Payable Amount</label
+                >
+                <input
+                  id="payableAmount"
+                  type="text"
+                  bind:value={amount}
+                  class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f]"
+                />
+              </div>
+              <div class="sm:col-span-2 relative flex flex-col gap-2">
+                <label
+                  for="payThrough"
+                  class="text-xs font-medium text-slate-600"
+                  >Pay through card</label
+                >
+                <div
+                  class="relative h-12 w-full rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer flex items-center px-4 justify-between"
+                >
+                  <div class="flex items-center gap-2">
+                    <div
+                      class="flex -space-x-1.5 opacity-80 mix-blend-multiply"
+                    >
+                      <div class="h-4 w-4 rounded-full bg-red-500"></div>
+                      <div class="h-4 w-4 rounded-full bg-yellow-400"></div>
+                    </div>
+                    <span class="text-sm font-medium text-slate-600"
+                      >{payThroughCard}</span
+                    >
+                  </div>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -240,87 +374,45 @@
                     stroke="currentColor"
                     stroke-width="2"
                     stroke-linecap="round"
-                    stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg
+                    stroke-linejoin="round"
+                    class="text-slate-400"><path d="m6 9 6 6 6-6" /></svg
                   >
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Right Column: Payment Details -->
-        <div class="flex flex-col gap-4">
-          <div class="flex items-center gap-2">
-            <span
-              class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-              >2</span
-            >
-            <h3 class="text-sm font-semibold text-slate-900">
-              Payment Details
-            </h3>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 pl-7">
-            <div class="sm:col-span-1 relative flex flex-col gap-2">
-              <label
-                for="currencyType"
-                class="text-xs font-medium text-slate-600">Currency type</label
+          <!-- 4. Transaction ID -->
+          <div class="flex flex-col gap-4">
+            <div class="flex items-center gap-2">
+              <span
+                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                >4</span
               >
-              <CustomSelect
-                id="currencyType"
-                bind:value={currency}
-                options={["INR", "USD", "EUR"]}
-              />
+              <h3 class="text-sm font-semibold text-slate-900">
+                Transaction ID (Optional)
+              </h3>
             </div>
-            <div class="sm:col-span-2 relative flex flex-col gap-2">
+            <div class="pl-7">
               <label
-                for="payableAmount"
-                class="text-xs font-medium text-slate-600">Payable Amount</label
+                for="txId"
+                class="mb-2 block text-xs font-medium text-slate-600"
+                >Transaction ID</label
               >
               <input
-                id="payableAmount"
+                id="txId"
                 type="text"
-                bind:value={amount}
-                class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f]"
+                placeholder="e.g. VAD455648"
+                bind:value={txId}
+                class="h-12 w-[340px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f]"
               />
-            </div>
-            <div class="sm:col-span-2 relative flex flex-col gap-2">
-              <label
-                for="payThrough"
-                class="text-xs font-medium text-slate-600"
-                >Pay through card</label
-              >
-              <div
-                class="relative h-12 w-full rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors cursor-pointer flex items-center px-4 justify-between"
-              >
-                <div class="flex items-center gap-2">
-                  <div class="flex -space-x-1.5 opacity-80 mix-blend-multiply">
-                    <div class="h-4 w-4 rounded-full bg-red-500"></div>
-                    <div class="h-4 w-4 rounded-full bg-yellow-400"></div>
-                  </div>
-                  <span class="text-sm font-medium text-slate-600"
-                    >{payThroughCard}</span
-                  >
-                </div>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="text-slate-400"><path d="m6 9 6 6 6-6" /></svg
-                >
-              </div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Action Button -->
-      <div class="absolute bottom-10 right-10">
+      <div class="mt-12 flex w-full justify-end">
         <button
           onclick={handlePreview}
           class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer"
@@ -343,10 +435,10 @@
         >
           ✕
         </button>
-        <p class="text-xs font-medium text-slate-500 mb-2">Paying to</p>
-        <div class="flex items-center gap-3 mb-6">
+        <p class="text-sm font-semibold text-slate-600 mb-2">Paying to</p>
+        <div class="flex items-center gap-4 mb-6">
           <div
-            class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 p-2 shadow-inner border border-slate-200"
+            class="flex h-14 w-14 items-center justify-center rounded-xl bg-slate-50 shadow-sm border border-slate-100"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -360,38 +452,42 @@
               stroke-linejoin="round"
               class="text-slate-700"
               ><rect
-                x="3"
-                y="4"
                 width="18"
                 height="18"
+                x="3"
+                y="4"
                 rx="2"
                 ry="2"
               /><line
                 x1="16"
-                y1="2"
                 x2="16"
+                y1="2"
                 y2="6"
               /><line
                 x1="8"
-                y1="2"
                 x2="8"
+                y1="2"
                 y2="6"
               /><line
                 x1="3"
-                y1="10"
                 x2="21"
+                y1="10"
                 y2="10"
-              /><path d="M9 16h6" /><path d="M12 13v6" /></svg
+              /><path d="M8 14h.01" /><path d="M12 14h.01" /><path
+                d="M16 14h.01"
+              /><path d="M8 18h.01" /><path d="M12 18h.01" /><path
+                d="M16 18h.01"
+              /></svg
             >
           </div>
-          <h2 class="text-2xl font-semibold text-slate-900">{selectedPayee}</h2>
+          <h2 class="text-2xl font-bold text-slate-900">{selectedPayee}</h2>
         </div>
 
-        <div class="flex flex-col gap-5">
+        <div class="flex flex-col gap-6">
           <div class="flex flex-col gap-1 text-[13px]">
             <span class="font-semibold text-slate-800">Card Validity</span>
             <span class="font-medium text-slate-500"
-              >Dec 26, 2025 (IST) - Jan 20, 2026 (IST)</span
+              >{computedDateRangeText}</span
             >
           </div>
 
@@ -415,6 +511,15 @@
             <span class="text-3xl font-semibold text-slate-900"
               >{currency === "INR" ? "₹" : currency} {amount}</span
             >
+          </div>
+
+          <div class="flex flex-col gap-1">
+            <span class="text-xs font-semibold text-slate-500"
+              >Transaction ID</span
+            >
+            <span class="font-medium text-slate-700">
+              {txId ? txId : "None"}
+            </span>
           </div>
         </div>
 
@@ -465,12 +570,12 @@
               <span class="text-sm font-semibold text-slate-800"
                 >{selectedPayee}</span
               >
-              <span class="text-[9px] font-medium text-slate-400 mt-1"
-                >Jan, 3rd, 2025, 13:30 PM</span
-              >
+              <p class="text-[13px] font-semibold text-slate-900 mt-1">
+                {computedDateRangeText}
+              </p>
               <span class="text-[9px] font-medium text-slate-400"
                 >Transaction ID: <span class="text-slate-600 font-semibold"
-                  >VAD60834B932</span
+                  >{txId ? txId : "None"}</span
                 ></span
               >
             </div>

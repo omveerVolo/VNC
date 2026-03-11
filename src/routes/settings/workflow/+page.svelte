@@ -9,7 +9,7 @@
 </svelte:head>
 
 <div class="flex min-h-screen w-full flex-col bg-slate-50 relative">
-  <TopBar />
+  <TopBar showSearch={false} />
 
   <div class="flex w-full flex-col items-center justify-start p-8 pt-6 pb-20">
     <div class="w-full max-w-[1400px]">

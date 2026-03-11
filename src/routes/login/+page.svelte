@@ -1,7 +1,12 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { login, logout } from "$lib/state/auth.svelte.js";
-  import { dbStore, registerUser } from "$lib/state/db.svelte.js";
+  import {
+    apiCall,
+    dbStore,
+    syncRemoteData,
+    upsertUser
+  } from "$lib/state/db.svelte.js";
   import { Loader2 } from "lucide-svelte";
   import { onMount } from "svelte";
 
@@ -14,7 +19,7 @@
     logout();
   });
 
-  // Target user found in mock DB after step 1
+  // Target user resolved from API after step 1
   let pendingUser: any = $state(null);
 
   // OTP State
@@ -30,20 +35,25 @@
     setTimeout(() => {
       isLoading = false;
 
-      // Check if user exists in the mock databse
-      let user = dbStore.users.find(
-        (u: any) => u.email === emailOrPhone || u.id === emailOrPhone
-      );
+      // Actually call GET /api/user?Email=... to verify existence
+      apiCall(`/user?email=${encodeURIComponent(emailOrPhone)}`)
+        .then((apiUser) => {
+          if (!apiUser) throw new Error("Not found");
+          const user = {
+            id: apiUser.id || emailOrPhone,
+            email: apiUser.email || emailOrPhone,
+            role: apiUser.role || "payer",
+            name: apiUser.name || "API User",
+            ...apiUser
+          };
 
-      if (!user) {
-        errorMessage =
-          "Account not found. Please sign up to create an account.";
-      } else {
-        pendingUser = user;
-        step = 2; // Move to OTP entry
-
-        setTimeout(() => otpInputs[0]?.focus(), 50);
-      }
+          pendingUser = user;
+          step = 2; // Move to OTP entry
+          setTimeout(() => otpInputs[0]?.focus(), 50);
+        })
+        .catch(() => {
+          errorMessage = "Account not found in remote system. Please sign up.";
+        });
     }, 800);
   }
 
@@ -53,10 +63,17 @@
       isLoading = true;
       errorMessage = "";
 
-      setTimeout(() => {
+      setTimeout(async () => {
         // Any 4 digit OTP simulates a successful login for the mock UI
-        const { password, ...sessionUser } = pendingUser!;
+        const { password, ...sessionUser } = pendingUser;
         login(sessionUser);
+        upsertUser(sessionUser);
+
+        // Fetch remote data matching this user
+        if (sessionUser.id) {
+          await syncRemoteData(sessionUser.id);
+        }
+
         goto("/");
       }, 800);
     }
