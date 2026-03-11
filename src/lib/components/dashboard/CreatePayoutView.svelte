@@ -518,7 +518,7 @@
               >Transaction ID</span
             >
             <span class="font-medium text-slate-700">
-              {txId ? txId : "None"}
+              {txId ? txId : "-"}
             </span>
           </div>
         </div>
@@ -575,7 +575,7 @@
               </p>
               <span class="text-[9px] font-medium text-slate-400"
                 >Transaction ID: <span class="text-slate-600 font-semibold"
-                  >{txId ? txId : "None"}</span
+                  >{txId ? txId : "-"}</span
                 ></span
               >
             </div>
