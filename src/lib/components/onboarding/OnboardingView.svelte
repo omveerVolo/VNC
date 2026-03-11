@@ -59,17 +59,21 @@
 
   let allPayees = $state<any[]>([]);
   let availableTrustedPayees = $derived(
-    allPayees.map((u: any) => ({
-      id: u.id,
-      name: u.businessName || u.name,
-      email: u.email,
-      city: u.city || "",
-      state: u.state || ""
-    }))
+    allPayees
+      .filter((u: any) => !businessType || u.category === businessType)
+      .map((u: any) => ({
+        id: u.id,
+        name: u.businessName || u.name,
+        email: u.email,
+        city: u.city || "",
+        state: u.state || ""
+      }))
   );
 
   $effect(() => {
-    apiCall("/payees")
+    if (!authState.user?.id) return;
+
+    apiCall(`/payees?payerId=${authState.user.id}`)
       .then((res) => {
         allPayees = Array.isArray(res) ? res : res?.payees || [];
       })
