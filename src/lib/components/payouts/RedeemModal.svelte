@@ -451,9 +451,9 @@
                 <User class="h-5 w-5" />
               </div>
               <div class="flex flex-col">
-                <span class="text-[14px] font-semibold text-slate-800"
+                <!-- <span class="text-[14px] font-semibold text-slate-800"
                   >Sanjay Singh</span
-                >
+                > -->
                 <span class="text-[11px] font-medium text-slate-500"
                   >**** **** **** 1989</span
                 >
