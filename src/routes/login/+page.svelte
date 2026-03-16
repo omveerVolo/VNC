@@ -11,7 +11,7 @@
   import { onMount } from "svelte";
 
   let emailOrPhone = $state("");
-  let step = $state(1); // 1 = Email/Phone, 2 = Verify OTP
+  let step = $state(1);
   let isLoading = $state(false);
   let errorMessage = $state("");
 
@@ -19,10 +19,8 @@
     logout();
   });
 
-  // Target user resolved from API after step 1
   let pendingUser: any = $state(null);
 
-  // OTP State
   let otp = $state(["", "", "", ""]);
   let otpInputs = $state<HTMLInputElement[]>([]);
 
@@ -35,7 +33,6 @@
     setTimeout(() => {
       isLoading = false;
 
-      // Actually call GET /api/user?Email=... to verify existence
       apiCall(`/user?email=${encodeURIComponent(emailOrPhone)}`)
         .then((apiUser) => {
           if (!apiUser) throw new Error("Not found");
@@ -48,7 +45,7 @@
           };
 
           pendingUser = user;
-          step = 2; // Move to OTP entry
+          step = 2;
           setTimeout(() => otpInputs[0]?.focus(), 50);
         })
         .catch(() => {
@@ -62,24 +59,18 @@
     if (fullOtp.length === 4 && pendingUser) {
       isLoading = true;
       errorMessage = "";
-
       setTimeout(async () => {
-        // Any 4 digit OTP simulates a successful login for the mock UI
         const { password, ...sessionUser } = pendingUser;
         login(sessionUser);
         upsertUser(sessionUser);
-
-        // Fetch remote data matching this user
         if (sessionUser.id) {
           await syncRemoteData(sessionUser.id);
         }
-
         goto("/");
       }, 800);
     }
   }
 
-  // --- OTP Input Management ---
   function handleOtpInput(
     e: Event & { currentTarget: EventTarget & HTMLInputElement },
     index: number
@@ -129,7 +120,64 @@
   >
     <!-- Left Side: Dark Purple Rounded Box -->
     <div class="hidden lg:flex w-1/2 p-4">
-      <div class="h-full w-full rounded-[32px] bg-[#231a4a]"></div>
+      <div
+        class="relative flex h-full w-full flex-col items-center justify-center rounded-[32px] bg-[#231a4a] overflow-hidden"
+      >
+        <!-- Abstract Background Elements -->
+        <div
+          class="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-[#7d326f] opacity-30 blur-[100px]"
+        ></div>
+        <div
+          class="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-[#0066cc] opacity-30 blur-[100px]"
+        ></div>
+
+        <!-- Logos Container -->
+        <div class="z-10 flex flex-col items-center justify-center gap-8">
+          <!-- HDFC Logo -->
+          <div
+            class="flex items-center justify-center rounded-2xl bg-white px-8 py-6 shadow-2xl transition-transform hover:scale-105"
+          >
+            <img
+              src="/Star_Health.png"
+              alt="HDFC Bank Logo"
+              class="h-14 w-auto object-contain"
+            />
+          </div>
+
+          <!-- Connection Element -->
+          <div class="flex flex-col items-center gap-3 opacity-80">
+            <div
+              class="h-10 w-px bg-gradient-to-b from-white/0 via-white/30 to-white/0"
+            ></div>
+            <div class="flex items-center gap-4">
+              <div
+                class="h-px w-12 bg-gradient-to-r from-white/0 to-white/30"
+              ></div>
+              <span
+                class="text-xs font-semibold uppercase tracking-[0.2em] text-white/90"
+                >In Partnership With</span
+              >
+              <div
+                class="h-px w-12 bg-gradient-to-l from-white/0 to-white/30"
+              ></div>
+            </div>
+            <div
+              class="h-10 w-px bg-gradient-to-b from-white/0 via-white/30 to-white/0"
+            ></div>
+          </div>
+
+          <!-- Star Health Logo -->
+          <div
+            class="flex items-center justify-center rounded-2xl bg-white px-8 py-6 shadow-2xl transition-transform hover:scale-105"
+          >
+            <img
+              src="/logo.png"
+              alt="Star Health Logo"
+              class="h-20 w-auto object-contain"
+            />
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Right Side: Login Form Area (Centered) -->

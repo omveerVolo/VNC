@@ -2,8 +2,16 @@
   import TopBar from "$lib/components/dashboard/TopBar.svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
   import { RefreshCw, FileText } from "lucide-svelte";
+  import { authState } from "$lib/state/auth.svelte.js";
 
-  let activeTab = $state("Payee");
+  let activeUser = $derived(
+    authState.isAdminView ? authState.viewingAs : authState.user
+  );
+
+  let entityTabName = $derived(
+    activeUser?.role === "payee" ? "Payer" : "Payee"
+  );
+  let activeTab = $state("Entity");
   let timeFilter = $state("All Time");
   let reportType = $state("Report Type");
 
@@ -66,13 +74,13 @@
           <div class="flex items-center gap-4">
             <div class="flex rounded-lg bg-slate-100 p-1">
               <button
-                onclick={() => (activeTab = "Payee")}
+                onclick={() => (activeTab = "Entity")}
                 class="rounded-md px-8 py-2 text-sm font-semibold transition-all shadow-sm {activeTab ===
-                'Payee'
+                'Entity'
                   ? 'bg-white text-[#0066cc] ring-1 ring-slate-200 cursor-default'
                   : 'text-slate-500 hover:text-slate-700 cursor-pointer'}"
               >
-                Payee
+                {entityTabName}
               </button>
               <button
                 onclick={() => (activeTab = "Program")}
@@ -134,7 +142,9 @@
           <div
             class="grid grid-cols-4 bg-slate-100 p-4 border-b border-slate-200 text-xs font-semibold text-slate-800"
           >
-            <div class="col-span-3">Payer</div>
+            <div class="col-span-3">
+              {activeTab === "Program" ? "Program" : entityTabName}
+            </div>
           </div>
 
           <div class="flex flex-col">

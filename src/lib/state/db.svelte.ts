@@ -7,29 +7,34 @@ const X_API_KEY = import.meta.env.VITE_X_API_KEY || "";
 const X_AUTH_CODE = import.meta.env.VITE_X_AUTH_CODE || "";
 
 // Internal fetch wrapper for JSON calls
-export async function apiCall(endpoint: string, method = "GET", body: any = null) {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json"
-  };
+export async function apiCall(
+  endpoint: string,
+  method = "GET",
+  body: any = null,
+) {
+  const headers: Record<string, string> = {};
 
-  
+  if (body && !(body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
   if (X_AUTH_CODE) headers["x-auth-code"] = X_AUTH_CODE;
 
   const options: RequestInit = {
     method,
-    headers
+    headers,
   };
-  
+
   if (body) {
-    options.body = JSON.stringify(body);
+    options.body = body instanceof FormData ? body : JSON.stringify(body);
   }
-  
+
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, options);
     // Explicitly handle no-content or bad responses gracefully
     if (!response.ok) {
-        console.warn(`API error on ${endpoint}: ${response.status}`);
-        return null;
+      console.warn(`API error on ${endpoint}: ${response.status}`);
+      return null;
     }
     const text = await response.text();
     return text ? JSON.parse(text) : null;
@@ -44,7 +49,7 @@ export const dbStore = $state({
   programs: [],
   notifications: [],
   payouts: [],
-  isLoading: false
+  isLoading: false,
 });
 
 // Sync data remotely when user context changes
@@ -63,14 +68,13 @@ export async function syncRemoteData(userId: string) {
     const [progRes, poyRes, notifRes] = await Promise.all([
       apiCall(`/programs?userId=${userId}`),
       apiCall(`/payouts?${payoutsQuery}`),
-      apiCall(`/notifications?userId=${userId}`)
+      apiCall(`/notifications?userId=${userId}`),
     ]);
-    
+
     // Only overwrite if API returns actual array arrays, else fallback to mock/empty
     if (progRes && Array.isArray(progRes)) dbStore.programs = progRes;
     if (poyRes && Array.isArray(poyRes)) dbStore.payouts = poyRes;
     if (notifRes && Array.isArray(notifRes)) dbStore.notifications = notifRes;
-    
   } catch (err) {
     console.error("Failed to sync remote data", err);
   } finally {
@@ -85,14 +89,14 @@ function saveDb() {
 export function redeemPayout(payoutId: string) {
   // Reassign the array to securely trigger Svelte 5 reactivity across derived trackers
   dbStore.payouts = dbStore.payouts.map((p: any) =>
-    p.id === payoutId ? { ...p, status: "Redeemed" } : p
+    p.id === payoutId ? { ...p, status: "Redeemed" } : p,
   );
   saveDb();
 }
 
 export function upsertUser(user: any) {
   const exists = dbStore.users.some(
-    (u: any) => u.id === user.id || (u.email && u.email === user.email)
+    (u: any) => u.id === user.id || (u.email && u.email === user.email),
   );
   if (!exists) {
     dbStore.users = [user, ...dbStore.users];
@@ -105,7 +109,7 @@ export function approvePayerPayout(payoutId: string) {
   if (!payout) return;
 
   dbStore.payouts = dbStore.payouts.map((p: any) =>
-    p.id === payoutId ? { ...p, status: "Ready to redeem" } : p
+    p.id === payoutId ? { ...p, status: "Ready to redeem" } : p,
   );
 
   // Provide a notification to the actual payee account about the approved payout
@@ -115,80 +119,105 @@ export function approvePayerPayout(payoutId: string) {
     title: "Payment Approved",
     message: `Your payout for Claim No. ${payout.claimNo} has been approved and is ready to redeem.`,
     read: false,
-    date: new Date().toISOString()
+    date: new Date().toISOString(),
   };
 
   dbStore.notifications = [newNotif, ...dbStore.notifications];
   saveDb();
 }
 
-export function createPayout(
-  amount: string,
-  programId: string,
-  payeeId: string,
-  payeeLabel: string,
-  customTxId?: string
+export function createPayout(payload: any | any[]) {
+  // Check if we are handling an array of payouts (Bulk Upload)
+  const isBulk = Array.isArray(payload);
+  const items = isBulk ? payload : [payload];
+
+  const newPayouts: any[] = [];
+  const newNotifications: any[] = [];
+
+  items.forEach((item) => {
+    const { amount, programId, payeeId, payeeLabel, customTxId } = item;
+
+    // Remove currency symbol and commas before parsing
+    const cleanAmount = String(amount).replace(/[₹,]/g, "");
+    const amountNumber = parseInt(cleanAmount, 10);
+
+    // Apply threshold logic: payouts > 51k require approval
+    const initialStatus = amountNumber > 51000 ? "Pending" : "Ready to redeem";
+
+    let targetId = payeeId;
+    const payeeRef = payeeLabel || payeeId || "";
+    const cleanPayee = String(payeeRef).trim().toLowerCase();
+    const targetUser = dbStore.users.find(
+      (u: any) =>
+        (u.name && u.name.toLowerCase() === cleanPayee) ||
+        (u.businessName && u.businessName.toLowerCase() === cleanPayee) ||
+        (u.email && u.email.toLowerCase() === cleanPayee),
+    );
+    if (!targetId) {
+      // If we can't strictly match the UI name to a DB user, we create a phantom ID tied to the string name
+      targetId = targetUser
+        ? targetUser.id
+        : `usr_pending_${cleanPayee.replace(/[^a-z0-9]/g, "")}`;
+    }
+
+    const newPayout = {
+      id: `clm_${Math.floor(Math.random() * 10000)}`,
+      userId: targetId,
+      payeeId: targetId,
+      payerId: authState.user?.id || "",
+      programId: programId,
+      date: new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }),
+      providerName:
+        payeeLabel || targetUser?.businessName || targetUser?.name || payeeId,
+      patientName: "Newly Assigned",
+      claimNo:
+        customTxId?.trim() || `VADE${Math.floor(Math.random() * 1000000)}`,
+      payoutId: `ACME${Math.floor(Math.random() * 100000000)}`,
+      amount: cleanAmount,
+      status: initialStatus,
+    };
+
+    newPayouts.push(newPayout);
+
+    // Provide a notification to the actual payee account about the new payout
+    const newNotif = {
+      id: `notif_${Math.floor(Math.random() * 10000)}`,
+      userId: targetId, // The targeted payee ID
+      title: "New Payment Created",
+      message: `A new payout of ₹${formatCurrency(amount)} mapped to Claim No. ${newPayout.claimNo} has been created for you.`,
+      read: false,
+      date: new Date().toISOString(), // We can use ISO strings for robust sorting
+    };
+
+    newNotifications.push(newNotif);
+  });
+
+  // API POST Dispatch (Send array for bulk, object for single)
+  const apiPayload = isBulk ? newPayouts : newPayouts[0];
+  apiCall("/payouts", "POST", apiPayload).catch(console.error);
+
+  newNotifications.forEach((notif) => {
+    apiCall("/notifications", "POST", notif).catch(console.error);
+  });
+
+  // @ts-ignore
+  dbStore.payouts = [...newPayouts, ...dbStore.payouts];
+  // @ts-ignore
+  dbStore.notifications = [...newNotifications, ...dbStore.notifications];
+
+  saveDb();
+}
+
+export function createProgram(
+  name: string,
+  type: string,
+  category: string,
+  payeeIds: string[] = [],
 ) {
-  // Remove currency symbol and commas before parsing
-  const cleanAmount = amount.replace(/[₹,]/g, '');
-  const amountNumber = parseInt(cleanAmount, 10);
-  
-  // Apply threshold logic: payouts > 51k require approval
-  const initialStatus = amountNumber > 51000 ? "Pending" : "Ready to redeem";
-
-  let targetId = payeeId;
-  const payeeRef = payeeLabel || payeeId || "";
-  const cleanPayee = String(payeeRef).trim().toLowerCase();
-  const targetUser = dbStore.users.find(
-    (u: any) =>
-      (u.name && u.name.toLowerCase() === cleanPayee) ||
-      (u.businessName && u.businessName.toLowerCase() === cleanPayee) ||
-      (u.email && u.email.toLowerCase() === cleanPayee)
-  );
-  if (!targetId) {
-    // If we can't strictly match the UI name to a DB user, we create a phantom ID tied to the string name
-    // so it at least maps correctly if they register later, rather than dumping it into usr_payee_01 statically.
-    targetId = targetUser ? targetUser.id : `usr_pending_${cleanPayee.replace(/[^a-z0-9]/g, '')}`;
-  }
-
-  const newPayout = {
-    id: `clm_${Math.floor(Math.random() * 10000)}`,
-    userId: targetId,
-    payeeId: targetId,
-    payerId: authState.user?.id || "",
-    programId: programId,
-    date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    providerName: payeeLabel || targetUser?.businessName || targetUser?.name || payeeId,
-    patientName: "Newly Assigned",
-    claimNo: customTxId?.trim() || `VADE${Math.floor(Math.random() * 1000000)}`,
-    payoutId: `ACME${Math.floor(Math.random() * 100000000)}`,
-    amount: cleanAmount,
-    status: initialStatus
-  };
-  
-  // API POST Dispatch
-  apiCall('/payouts', 'POST', newPayout).catch(console.error);
-
-  // Prepend to array and reassign to trigger reactivity
-  dbStore.payouts = [newPayout, ...dbStore.payouts];
-
-  // Provide a notification to the actual payee account about the new payout
-  const newNotif = {
-    id: `notif_${Math.floor(Math.random() * 10000)}`,
-    userId: targetId, // The targeted payee ID
-    title: "New Payment Created",
-    message: `A new payout of ₹${formatCurrency(amount)} mapped to Claim No. ${newPayout.claimNo} has been created for you.`,
-    read: false,
-    date: new Date().toISOString() // We can use ISO strings for robust sorting
-  };
-  
-  apiCall('/notifications', 'POST', newNotif).catch(console.error);
-  
-  dbStore.notifications = [newNotif, ...dbStore.notifications];
-  saveDb();
-}
-
-export function createProgram(name: string, type: string, category: string, payeeIds: string[] = []) {
   if (!authState.user?.id) return;
 
   const targetIds = payeeIds;
@@ -199,14 +228,18 @@ export function createProgram(name: string, type: string, category: string, paye
     payerId: authState.user.id,
     status: "Active",
     category: category,
-    createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    createdAt: new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
     createdBy: authState.user.name || "System",
     payoutsReceived: 0,
     enrolledPayees: [],
     invitedPayees: [],
-    selectedPayees: targetIds
+    selectedPayees: targetIds,
   };
-  
+
   // Also push a demo notification allowing the Payer to see they made a program
   const newNotif = {
     id: `notif_${Math.floor(Math.random() * 10000)}`,
@@ -214,21 +247,23 @@ export function createProgram(name: string, type: string, category: string, paye
     title: "Program Configured Successfully",
     message: `Payment Program "${name}" for ${type} (${category}) is now active.`,
     read: false,
-    date: new Date().toISOString()
+    date: new Date().toISOString(),
   };
 
   // Dispatch remotely
-  apiCall('/programs', 'POST', newProgram).then(res => {
-    if (res) console.log("Program saved remotely:", res);
-  }).catch(err => console.error(err));
-  
-  apiCall('/notifications', 'POST', newNotif).catch(console.error);
+  apiCall("/programs", "POST", newProgram)
+    .then((res) => {
+      if (res) console.log("Program saved remotely:", res);
+    })
+    .catch((err) => console.error(err));
+
+  apiCall("/notifications", "POST", newNotif).catch(console.error);
 
   // Optimistic UI updates
   dbStore.programs = [newProgram, ...dbStore.programs];
   dbStore.notifications = [newNotif, ...dbStore.notifications];
 
-  targetIds.forEach(targetId => {
+  targetIds.forEach((targetId) => {
     const payeeNotif = {
       id: `notif_${Math.floor(Math.random() * 10000)}`,
       userId: targetId,
@@ -238,32 +273,40 @@ export function createProgram(name: string, type: string, category: string, paye
       read: false,
       type: "invitation",
       programId: newProgram.id,
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
     };
-    
-    apiCall('/notifications', 'POST', payeeNotif).catch(console.error);
+
+    apiCall("/notifications", "POST", payeeNotif).catch(console.error);
     dbStore.notifications = [payeeNotif, ...dbStore.notifications];
   });
   saveDb();
 }
 
-export async function acceptInvitation(notificationId: string, programId: string, payeeId: string) {
+export async function acceptInvitation(
+  notificationId: string,
+  programId: string,
+  payeeId: string,
+) {
   const res = await apiCall("/programs/activate-payees", "PUT", {
     programId,
     payeeId,
     notificationId,
-    isRejected: false
+    isRejected: false,
   }).catch(console.error);
   // Add payee to program
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === programId && !p.enrolledPayees.includes(payeeId)) {
-      const updatedInvited = (p.invitedPayees || []).filter((id: string) => id !== payeeId);
-      const updatedSelected = (p.selectedPayees || []).filter((id: string) => id !== payeeId);
-      return { 
-        ...p, 
+      const updatedInvited = (p.invitedPayees || []).filter(
+        (id: string) => id !== payeeId,
+      );
+      const updatedSelected = (p.selectedPayees || []).filter(
+        (id: string) => id !== payeeId,
+      );
+      return {
+        ...p,
         enrolledPayees: [...p.enrolledPayees, payeeId],
         invitedPayees: updatedInvited,
-        selectedPayees: updatedSelected
+        selectedPayees: updatedSelected,
       };
     }
     return p;
@@ -271,7 +314,10 @@ export async function acceptInvitation(notificationId: string, programId: string
 
   // Reconcile pending payouts assigned to phantom IDs for this program
   dbStore.payouts = dbStore.payouts.map((p: any) => {
-    if (p.programId === programId && String(p.userId).startsWith("usr_pending_")) {
+    if (
+      p.programId === programId &&
+      String(p.userId).startsWith("usr_pending_")
+    ) {
       return { ...p, userId: payeeId };
     }
     return p;
@@ -279,9 +325,11 @@ export async function acceptInvitation(notificationId: string, programId: string
 
   // Mark notification as read instead of removing
   dbStore.notifications = dbStore.notifications.map((n: any) =>
-    n.id === notificationId ? { ...n, read: true } : n
+    n.id === notificationId ? { ...n, read: true } : n,
   );
-  const notifRes = await apiCall(`/notifications?userId=${payeeId}`).catch(() => null);
+  const notifRes = await apiCall(`/notifications?userId=${payeeId}`).catch(
+    () => null,
+  );
   if (notifRes && Array.isArray(notifRes)) dbStore.notifications = notifRes;
   if (res !== null) {
     await syncRemoteData(payeeId);
@@ -289,20 +337,28 @@ export async function acceptInvitation(notificationId: string, programId: string
   saveDb();
 }
 
-export async function rejectInvitation(notificationId: string, programId: string, payeeId: string) {
+export async function rejectInvitation(
+  notificationId: string,
+  programId: string,
+  payeeId: string,
+) {
   await apiCall("/programs/activate-payees", "PUT", {
     programId,
     payeeId,
     notificationId,
-    isRejected: true
+    isRejected: true,
   }).catch(console.error);
 
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === programId) {
       return {
         ...p,
-        invitedPayees: (p.invitedPayees || []).filter((id: string) => id !== payeeId),
-        selectedPayees: (p.selectedPayees || []).filter((id: string) => id !== payeeId)
+        invitedPayees: (p.invitedPayees || []).filter(
+          (id: string) => id !== payeeId,
+        ),
+        selectedPayees: (p.selectedPayees || []).filter(
+          (id: string) => id !== payeeId,
+        ),
       };
     }
     return p;
@@ -310,45 +366,56 @@ export async function rejectInvitation(notificationId: string, programId: string
 
   // Mark notification as read instead of removing
   dbStore.notifications = dbStore.notifications.map((n: any) =>
-    n.id === notificationId ? { ...n, read: true } : n
+    n.id === notificationId ? { ...n, read: true } : n,
   );
-  const notifRes = await apiCall(`/notifications?userId=${payeeId}`).catch(() => null);
+  const notifRes = await apiCall(`/notifications?userId=${payeeId}`).catch(
+    () => null,
+  );
   if (notifRes && Array.isArray(notifRes)) dbStore.notifications = notifRes;
   saveDb();
 }
 
-export function updateProgram(id: string, name: string, type: string, category: string, payeeIds: string[] = []) {
+export function updateProgram(
+  id: string,
+  name: string,
+  type: string,
+  category: string,
+  payeeIds: string[] = [],
+) {
   const targetIds = payeeIds;
 
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === id) {
       const updated = { ...p, name, category };
       updated.selectedPayees = [
-        ...new Set([...(updated.selectedPayees || []), ...targetIds])
+        ...new Set([...(updated.selectedPayees || []), ...targetIds]),
       ];
-      
+
       // Add all new IDs that aren't already enrolled
-      targetIds.forEach(targetId => {
-        if (!updated.enrolledPayees.includes(targetId) && !updated.invitedPayees?.includes(targetId)) {
+      targetIds.forEach((targetId) => {
+        if (
+          !updated.enrolledPayees.includes(targetId) &&
+          !updated.invitedPayees?.includes(targetId)
+        ) {
           updated.invitedPayees = [...(updated.invitedPayees || []), targetId];
         }
       });
-      
+
       // Hit the explicit update API endpoint as requested by user
       apiCall("/programs/add-payees", "PUT", {
         programId: p.id,
         payerId: authState.user?.id || p.payerId,
-        payeeIds: targetIds
-      }).catch(err => console.error("Failed to add payees to program:", err));
+        payeeIds: targetIds,
+      }).catch((err) => console.error("Failed to add payees to program:", err));
 
       return updated;
     }
     return p;
   });
 
-  targetIds.forEach(targetId => {
+  targetIds.forEach((targetId) => {
     const alreadyInvited = dbStore.notifications.some(
-      (n: any) => n.userId === targetId && n.programId === id
+      (n: any) => n.userId === targetId && n.programId === id,
     );
 
     const programToUpdate = dbStore.programs.find((p: any) => p.id === id);
@@ -364,7 +431,7 @@ export function updateProgram(id: string, name: string, type: string, category: 
         read: false,
         type: "invitation",
         programId: id,
-        date: new Date().toISOString()
+        date: new Date().toISOString(),
       };
       dbStore.notifications = [payeeNotif, ...dbStore.notifications];
     }
@@ -378,7 +445,9 @@ export function cancelEnrollment(programId: string, payeeId: string) {
     if (program.id === programId) {
       return {
         ...program,
-        enrolledPayees: program.enrolledPayees.filter((id: string) => id !== payeeId)
+        enrolledPayees: program.enrolledPayees.filter(
+          (id: string) => id !== payeeId,
+        ),
       };
     }
     return program;
@@ -388,6 +457,6 @@ export function cancelEnrollment(programId: string, payeeId: string) {
 
 function formatCurrency(rawAmount: any) {
   if (!rawAmount) return "0";
-    if (typeof rawAmount === "number") return rawAmount.toLocaleString("en-IN");
-    return String(rawAmount).replace("₹", "");
-  }
+  if (typeof rawAmount === "number") return rawAmount.toLocaleString("en-IN");
+  return String(rawAmount).replace("₹", "");
+}

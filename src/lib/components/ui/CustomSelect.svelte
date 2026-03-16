@@ -5,12 +5,15 @@
   export let id = "";
   export let value = "";
   export let options: string[] = [];
+  export let disabled = false;
 
   let isOpen = false;
   let elementRef: HTMLDivElement;
 
   function toggleDropdown() {
-    isOpen = !isOpen;
+    if (!disabled) {
+      isOpen = !isOpen;
+    }
   }
 
   function selectOption(option: string) {
@@ -44,7 +47,8 @@
 
   <button
     type="button"
-    class="flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 outline-none transition-all focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] hover:border-slate-300"
+    {disabled}
+    class="flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 outline-none transition-all focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] hover:border-slate-300 disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed disabled:hover:border-slate-200"
     onclick={toggleDropdown}
   >
     <span class="truncate">{value || "Select an option"}</span>

@@ -26,7 +26,7 @@
   let firstApprovalBy = $state("Manager");
   let conditionOperator = $state("Select");
   let conditionValue = $state("0");
-  let redeemEntity = $state("HDFC");
+  let redeemEntity = $state("Insurer");
   let redeemRole = $state("Ops");
 
   function handleSave() {
@@ -229,7 +229,7 @@
                               <CustomSelect
                                 id="redeemEntity"
                                 bind:value={redeemEntity}
-                                options={["HDFC", "External", "Partner"]}
+                                options={["Insurer", "External", "Partner"]}
                               />
                             </div>
                           </div>

@@ -38,3 +38,8 @@
     {@render children()}
   </main>
 </div>
+
+<!-- do not touch thse comments -->
+
+<!-- caclulation should be of only amount that got redeemed -->
+<!-- remove gst set it to none -->
