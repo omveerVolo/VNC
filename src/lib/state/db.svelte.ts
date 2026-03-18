@@ -12,7 +12,9 @@ export async function apiCall(
   method = "GET",
   body: any = null,
 ) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Origin": "*",
+  };
 
   if (body && !(body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
@@ -521,7 +523,9 @@ export async function requestReport(
     if (endDate) params.append("endDate", endDate);
     params.append("format", "csv");
 
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      "Access-Control-Allow-Origin": "*",
+    };
     if (X_AUTH_CODE) headers["x-auth-code"] = X_AUTH_CODE;
 
     const response = await fetch(`${API_BASE}${endpoint}?${params.toString()}`, {
