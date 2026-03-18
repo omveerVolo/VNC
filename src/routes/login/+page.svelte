@@ -14,6 +14,7 @@
   let step = $state(1);
   let isLoading = $state(false);
   let errorMessage = $state("");
+  let currentImage = $state("two.png");
 
   onMount(() => {
     logout();
@@ -121,61 +122,35 @@
     <!-- Left Side: Dark Purple Rounded Box -->
     <div class="hidden lg:flex w-1/2 p-4">
       <div
-        class="relative flex h-full w-full flex-col items-center justify-center rounded-[32px] bg-[#231a4a] overflow-hidden"
+        class="relative h-full w-full flex items-center justify-center rounded-[32px] bg-[#231a4a] overflow-hidden"
       >
-        <!-- Abstract Background Elements -->
-        <div
-          class="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-[#7d326f] opacity-30 blur-[100px]"
-        ></div>
-        <div
-          class="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-[#0066cc] opacity-30 blur-[100px]"
-        ></div>
-
-        <!-- Logos Container -->
-        <div class="z-10 flex flex-col items-center justify-center gap-8">
-          <!-- HDFC Logo -->
-          <div
-            class="flex items-center justify-center rounded-2xl bg-white px-8 py-6 shadow-2xl transition-transform hover:scale-105"
-          >
-            <img
-              src="/Star_Health.png"
-              alt="HDFC Bank Logo"
-              class="h-14 w-auto object-contain"
-            />
-          </div>
-
-          <!-- Connection Element -->
-          <div class="flex flex-col items-center gap-3 opacity-80">
-            <div
-              class="h-10 w-px bg-gradient-to-b from-white/0 via-white/30 to-white/0"
-            ></div>
-            <div class="flex items-center gap-4">
-              <div
-                class="h-px w-12 bg-gradient-to-r from-white/0 to-white/30"
-              ></div>
-              <!-- <span
-                class="text-xs font-semibold uppercase tracking-[0.2em] text-white/90"
-                >In Partnership With</span
-              > -->
-              <div
-                class="h-px w-12 bg-gradient-to-l from-white/0 to-white/30"
-              ></div>
-            </div>
-            <div
-              class="h-10 w-px bg-gradient-to-b from-white/0 via-white/30 to-white/0"
-            ></div>
-          </div>
-
-          <!-- Star Health Logo -->
-          <div
-            class="flex items-center justify-center rounded-2xl bg-white px-8 py-6 shadow-2xl transition-transform hover:scale-105"
-          >
-            <img
-              src="/logo.png"
-              alt="Star Health Logo"
-              class="h-20 w-auto object-contain"
-            />
-          </div>
+        <!-- Image one -->
+        <img
+          src="/one.png"
+          alt="Login Dashboard 1"
+          class="absolute left-1/2 -translate-x-1/2 h-full transition-all hover:scale-[1.02] duration-700 ease-in-out {currentImage === 'one.png' ? 'opacity-100 visible z-10' : 'opacity-0 invisible z-0'}"
+        />
+        <!-- Image two -->
+        <img
+          src="/two.png"
+          alt="Login Dashboard 2"
+          class="absolute left-1/2 -translate-x-1/2 h-full transition-all hover:scale-[1.02] duration-700 ease-in-out {currentImage === 'two.png' ? 'opacity-100 visible z-10' : 'opacity-0 invisible z-0'}"
+        />
+        
+        <!-- Carousel Dots -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
+          <button
+            type="button"
+            aria-label="Show image one"
+            onclick={() => currentImage = "one.png"}
+            class="h-2.5 rounded-full transition-all duration-300 {currentImage === 'one.png' ? 'w-8 bg-white' : 'w-2.5 bg-white/50 hover:bg-white/80'}"
+          ></button>
+          <button
+            type="button"
+            aria-label="Show image two"
+            onclick={() => currentImage = "two.png"}
+            class="h-2.5 rounded-full transition-all duration-300 {currentImage === 'two.png' ? 'w-8 bg-white' : 'w-2.5 bg-white/50 hover:bg-white/80'}"
+          ></button>
         </div>
       </div>
     </div>
