@@ -153,10 +153,10 @@
               <div
                 class="h-px w-12 bg-gradient-to-r from-white/0 to-white/30"
               ></div>
-              <span
+              <!-- <span
                 class="text-xs font-semibold uppercase tracking-[0.2em] text-white/90"
                 >In Partnership With</span
-              >
+              > -->
               <div
                 class="h-px w-12 bg-gradient-to-l from-white/0 to-white/30"
               ></div>

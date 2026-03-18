@@ -49,6 +49,7 @@ export const dbStore = $state({
   programs: [],
   notifications: [],
   payouts: [],
+  reportsHistory: [] as any[], // New Reports Tracker
   isLoading: false,
 });
 
@@ -135,7 +136,7 @@ export function createPayout(payload: any | any[]) {
   const newNotifications: any[] = [];
 
   items.forEach((item) => {
-    const { amount, programId, payeeId, payeeLabel, customTxId } = item;
+    const { amount, programId, payeeId, payeeLabel, customTxId, extraFields } = item;
 
     // Remove currency symbol and commas before parsing
     const cleanAmount = String(amount).replace(/[₹,]/g, "");
@@ -179,6 +180,7 @@ export function createPayout(payload: any | any[]) {
       payoutId: `ACME${Math.floor(Math.random() * 100000000)}`,
       amount: cleanAmount,
       status: initialStatus,
+      extraFields: extraFields || {},
     };
 
     newPayouts.push(newPayout);
@@ -217,6 +219,7 @@ export function createProgram(
   type: string,
   category: string,
   payeeIds: string[] = [],
+  customFields: Array<{key: string, type: string, required: boolean}> = []
 ) {
   if (!authState.user?.id) return;
 
@@ -238,6 +241,7 @@ export function createProgram(
     enrolledPayees: [],
     invitedPayees: [],
     selectedPayees: targetIds,
+    additionalFields: customFields.map(f => ({ key: f.key, required: f.required })),
   };
 
   // Also push a demo notification allowing the Payer to see they made a program
@@ -260,7 +264,9 @@ export function createProgram(
   apiCall("/notifications", "POST", newNotif).catch(console.error);
 
   // Optimistic UI updates
+  // @ts-ignore
   dbStore.programs = [newProgram, ...dbStore.programs];
+  // @ts-ignore
   dbStore.notifications = [newNotif, ...dbStore.notifications];
 
   targetIds.forEach((targetId) => {
@@ -381,12 +387,18 @@ export function updateProgram(
   type: string,
   category: string,
   payeeIds: string[] = [],
+  customFields: Array<{key: string, type: string, required: boolean}> = []
 ) {
   const targetIds = payeeIds;
 
   dbStore.programs = dbStore.programs.map((p: any) => {
     if (p.id === id) {
-      const updated = { ...p, name, category };
+      const updated = {
+        ...p,
+        name,
+        category,
+        additionalFields: customFields.map(f => ({ key: f.key, required: f.required }))
+      };
       updated.selectedPayees = [
         ...new Set([...(updated.selectedPayees || []), ...targetIds]),
       ];
@@ -459,4 +471,119 @@ function formatCurrency(rawAmount: any) {
   if (!rawAmount) return "0";
   if (typeof rawAmount === "number") return rawAmount.toLocaleString("en-IN");
   return String(rawAmount).replace("₹", "");
+}
+
+// --------------------------------------------------------------------------
+// Report APIs
+// --------------------------------------------------------------------------
+
+export async function requestReport(
+  payerId: string | undefined,
+  targetType: "program" | "payee",
+  targetId: string,
+  targetName: string,
+  startDate: string,
+  endDate: string,
+  statusFilter: string
+) {
+  const reportId = `rep_${Math.random().toString(36).substring(2, 9)}`;
+
+  const parsedTargetName = targetId === "all" || !targetName 
+    ? (targetType === "program" ? "All Programs" : "All Payees") 
+    : targetName;
+
+  const newReport = {
+    id: reportId,
+    requestedAt: new Date().toISOString(),
+    programId: parsedTargetName,
+    dateRange: startDate && endDate ? `${startDate} to ${endDate}` : 'All Time',
+    statusFilter,
+    status: "loading",
+    downloadUrl: ""
+  };
+
+  dbStore.reportsHistory = [newReport, ...dbStore.reportsHistory];
+
+  try {
+    const endpoint = targetType === "program" ? "/reports/programs" : "/reports/payees";
+    const params = new URLSearchParams();
+    if (payerId) params.append("payerId", payerId);
+    
+    if (targetId && targetId !== "all") {
+       if (targetType === "program") {
+         params.append("programId", targetId);
+       } else {
+         params.append("payeeId", targetId);
+       }
+    }
+    
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    params.append("format", "csv");
+
+    const headers: Record<string, string> = {};
+    if (X_AUTH_CODE) headers["x-auth-code"] = X_AUTH_CODE;
+
+    const response = await fetch(`${API_BASE}${endpoint}?${params.toString()}`, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch report: ${response.status}`);
+    }
+
+    let csvText = await response.text();
+    
+    // Attempt to parse JSON and convert to perfect CSV if backend returned JSON
+    try {
+      const data = JSON.parse(csvText);
+      const arr = Array.isArray(data) ? data : data.rows || [];
+      
+      if (arr.length > 0) {
+        // Extract headers from the first object
+        const headers = Object.keys(arr[0]);
+        const csvRows = [];
+        
+        // Push headers row
+        csvRows.push(headers.join(","));
+        
+        // Push data rows
+        for (const row of arr) {
+          const values = headers.map(header => {
+            const val = row[header];
+            if (val === null || val === undefined) return "";
+            if (typeof val === "object") {
+              // Extract sub-fields from objects like fieldUsage/extraFields
+              return `"${JSON.stringify(val).replace(/"/g, '""')}"`;
+            }
+            return `"${String(val).replace(/"/g, '""')}"`;
+          });
+          csvRows.push(values.join(","));
+        }
+        
+        csvText = csvRows.join("\n");
+      }
+    } catch (e) {
+      // If it's already a CSV string, JSON.parse will fail and we just use the raw text
+    }
+
+    const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    // Update history record
+    const idx = dbStore.reportsHistory.findIndex((r) => r.id === reportId);
+    if (idx !== -1) {
+      dbStore.reportsHistory[idx].status = "ready";
+      dbStore.reportsHistory[idx].downloadUrl = url;
+    }
+  } catch (err) {
+    console.error("Report generation failed:", err);
+    const idx = dbStore.reportsHistory.findIndex((r) => r.id === reportId);
+    if (idx !== -1) {
+      dbStore.reportsHistory[idx].status = "error";
+    }
+  }
+
+  return reportId;
 }

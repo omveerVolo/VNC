@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { ArrowLeft, Search, Upload, Calendar } from "lucide-svelte";
-  import { createEventDispatcher } from "svelte";
+  import { ArrowLeft, Upload, Calendar, User, FileUp } from "lucide-svelte";
+  import { createEventDispatcher, untrack } from "svelte";
+  import { slide } from "svelte/transition";
   import TopBar from "$lib/components/dashboard/TopBar.svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
   import { apiCall, dbStore, createPayout } from "$lib/state/db.svelte.js";
@@ -14,6 +15,8 @@
   );
 
   // Form State
+  let journey = $state<"selection" | "single" | "bulk">("selection");
+  let bulkStep = $state<"program" | "upload">("program");
   let accessiblePrograms = $derived(
     dbStore.programs.filter((p: any) => p.payerId === activeUser?.id)
   );
@@ -37,7 +40,7 @@
   });
 
   let realProgram = $derived(
-    accessiblePrograms.find((p: any) => p.name === selectedProgram)
+    accessiblePrograms.find((p: any) => p.name === selectedProgram) as any
   );
   let programPayees = $state<any[]>([]);
   let payeeOptions = $derived(
@@ -82,6 +85,29 @@
   let selectedDateRange = $state("1 Month");
   let showDateDropdown = $state(false);
   let txId = $state("");
+  let deductionSetting = $state("None");
+  let tdsPercentage = $state("");
+
+  let dynamicFieldValues = $state<Record<string, any>>({});
+
+  $effect(() => {
+    // Re-initialize dynamic fields whenever the selected program changes
+    if (realProgram?.additionalFields) {
+      untrack(() => {
+        const newVals: Record<string, any> = {};
+        realProgram.additionalFields.forEach((f: any) => {
+          // Keep existing values avoiding resets typing on unrelated rerenders
+          newVals[f.key] =
+            dynamicFieldValues[f.key] !== undefined
+              ? dynamicFieldValues[f.key]
+              : "";
+        });
+        dynamicFieldValues = newVals;
+      });
+    } else {
+      dynamicFieldValues = {};
+    }
+  });
 
   let computedDateRangeText = $derived.by(() => {
     const start = new Date();
@@ -96,22 +122,115 @@
     }
 
     const formatOpts = { month: "short", day: "numeric", year: "numeric" };
-    const startStr = start.toLocaleDateString("en-US", formatOpts);
+    // const startStr = start.toLocaleDateString("en-US", formatOpts);
     const endStr = end.toLocaleDateString("en-US", formatOpts);
 
-    return `${startStr} (IST) - ${endStr} (IST)`;
+    return `${endStr}`;
   });
 
   // Modal States
   let showPreview = $state(false);
   let showSuccess = $state(false);
   let isPreviewLoading = $state(false);
+  let validationError = $state("");
 
   // CSV Upload State
-  let fileInput: HTMLInputElement;
+  let fileInput = $state<HTMLInputElement>();
   let csvData = $state<any[]>([]);
-  let showCsvModal = $state(false);
   let isUploadingCsv = $state(false);
+
+  // Download Template State
+  let isTemplateReady = $state(false);
+
+  function downloadTemplate() {
+    isTemplateReady = true;
+
+    // Construct headers: Core fields + any required custom fields from the program
+    const coreHeaders = [
+      "Program Name",
+      "Business Name",
+      "Email",
+      "Transaction ID",
+      "Amount"
+    ];
+    const customHeaders =
+      realProgram?.additionalFields?.map((f: any) => f.key) || [];
+    const allHeaders = [...coreHeaders, ...customHeaders];
+
+    // Create simple CSV content with headers row
+    let csvContent = allHeaders.join(",") + "\n";
+
+    // Add example row pre-filled with the current Program Name and hyphens
+    const pName = realProgram?.name || "Program Name";
+
+    // Create an array with the program name, and hyphens for the rest of the columns
+    const exampleRow = [pName];
+    for (let i = 1; i < allHeaders.length; i++) {
+      exampleRow.push("-");
+    }
+
+    csvContent += exampleRow.join(",") + "\n";
+
+    // Trigger download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const cleanProgramName =
+      realProgram?.name?.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "payouts";
+    link.setAttribute("download", `${cleanProgramName}_template.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Reset UI state quickly
+    setTimeout(() => {
+      isTemplateReady = false;
+    }, 600);
+  }
+  let payeeSearchTerm = $state("");
+  let filteredPayees = $derived.by(() => {
+    if (!payeeSearchTerm.trim()) return [];
+    const term = payeeSearchTerm.toLowerCase();
+    return programPayees
+      .filter(
+        (p: any) =>
+          p.email?.toLowerCase().includes(term) ||
+          p.name?.toLowerCase().includes(term) ||
+          p.businessName?.toLowerCase().includes(term)
+      )
+      .slice(0, 5); // Limit to top 5 results for clarity
+  });
+
+  function copyToClipboard(text: string) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "absolute";
+      textArea.style.left = "-999999px";
+      document.body.prepend(textArea);
+      textArea.select();
+      try {
+        document.execCommand("copy");
+      } catch (error) {
+        console.error(error);
+      } finally {
+        textArea.remove();
+      }
+    }
+  }
+
+  $effect(() => {
+    if (journey === "bulk" && bulkStep === "program") {
+      isTemplateReady = false;
+      const t = setTimeout(() => {
+        isTemplateReady = true;
+      }, 1000);
+      return () => clearTimeout(t);
+    }
+  });
 
   async function handleCsvUpload(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -119,6 +238,7 @@
 
     const file = target.files[0];
     isUploadingCsv = true;
+    bulkStep = "upload"; // Instantly switch UI text to upload state
 
     const realProgram = accessiblePrograms.find(
       (p: any) => p.name === selectedProgram
@@ -144,9 +264,9 @@
           businessName: r.businessName,
           amount: r.amount.toString(),
           currency: currency || "INR",
-          validity: r.validity,
+          extraFields: r.extraFields || {},
+          validity: r.validity
         }));
-        showCsvModal = true;
       } else {
         console.error("Invalid CSV format from server");
       }
@@ -158,15 +278,22 @@
     }
   }
 
-  function handleCsvDone() {
-    showCsvModal = false;
-  }
-
   function handleCancel() {
-    dispatch("cancel");
+    if (journey === "bulk" && bulkStep === "upload") {
+      bulkStep = "program";
+      csvData = [];
+    } else if (journey !== "selection") {
+      journey = "selection";
+      bulkStep = "program";
+      csvData = [];
+      showPreview = false;
+    } else {
+      dispatch("cancel");
+    }
   }
 
   function handlePreview() {
+    validationError = ""; // Clear old errors
     if (csvData.length > 0) {
       isPreviewLoading = true;
       // Mocking an API call
@@ -175,6 +302,28 @@
         showPreview = true;
       }, 1500);
     } else {
+      // Validate Single Payout
+      if (!selectedPayee || selectedPayee === "No Payees Available") {
+        validationError = "Please select a valid Business receiving payment.";
+        return;
+      }
+
+      const parsedAmount = parseFloat(amount.toString().replace(/,/g, ""));
+      if (!parsedAmount || parsedAmount <= 0 || isNaN(parsedAmount)) {
+        validationError = "Please enter a valid Payable Amount greater than 0.";
+        return;
+      }
+
+      // Validate Custom Fields
+      if (realProgram?.additionalFields?.length > 0) {
+        for (const field of realProgram.additionalFields) {
+          if (field.required && !dynamicFieldValues[field.key]) {
+            validationError = `Please enter the required field: ${field.label || field.key}`;
+            return;
+          }
+        }
+      }
+
       showPreview = true;
     }
   }
@@ -192,7 +341,8 @@
         // Find if payee exists
         const match = programPayees.find(
           (p: any) =>
-            (p.businessName || p.name || p.email) === (row.businessName || row.email)
+            (p.businessName || p.name || p.email) ===
+            (row.businessName || row.email)
         );
         const pidRow = match?.id || row.payeeId || "";
         return {
@@ -210,7 +360,8 @@
         programId: pid,
         payeeId: selectedPayeeId,
         payeeLabel: selectedPayee,
-        customTxId: txId
+        customTxId: txId,
+        extraFields: dynamicFieldValues
       });
     }
 
@@ -221,6 +372,7 @@
   function handleFinish() {
     showSuccess = false;
     csvData = []; // clear csv after done
+    bulkStep = "program"; // reset bulk step
     dispatch("cancel"); // returns to dashboard
   }
 </script>
@@ -242,324 +394,894 @@
           >
             <ArrowLeft class="h-4 w-4" />
           </button>
-          <h2 class="text-xl font-semibold text-slate-900">Select Program</h2>
+          <h2 class="text-xl font-semibold text-slate-900">
+            {journey === "selection"
+              ? "Choose Payout Method"
+              : journey === "single"
+                ? "Single Payout"
+                : "Bulk Upload"}
+          </h2>
         </div>
-        <div class="flex gap-2 items-center">
-          {#if csvData.length > 0}
-            <button
-              onclick={() => {
-                csvData = [];
-              }}
-              class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-sm"
-            >
-              Remove CSV
-            </button>
-          {/if}
-          <button
-            onclick={() => fileInput?.click()}
-            disabled={isUploadingCsv}
-            class="flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {#if isUploadingCsv}
-              <div
-                class="h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-transparent"
-              ></div>
-              Uploading...
-            {:else}
-              <Upload class="h-4 w-4" /> Upload CSV
-            {/if}
-          </button>
-          <input
-            type="file"
-            accept=".csv"
-            class="hidden"
-            bind:this={fileInput}
-            onchange={handleCsvUpload}
-          />
-        </div>
+
+        {#if journey === "bulk" && false}
+          <!-- Removed from header: now managed inside the inline views -->
+        {/if}
       </div>
 
-      <!-- Virtual Card Presentation -->
-      <div class="mt-8 flex w-full">
-        <!-- Virtual Card Node (Widened to w-96 from w-80, ratio maintained) -->
+      {#if journey === "selection"}
+        <!-- Selection Journey UI -->
         <div
-          class="flex h-60 w-96 flex-col justify-between rounded-3xl bg-[#6a32fc] bg-gradient-to-br from-[#8a42fc] to-[#4a22dc] p-8 shadow-lg relative ring-2 ring-offset-2 ring-transparent"
+          class="mt-16 flex flex-col items-center justify-center w-full gap-8"
         >
-          <div class="flex justify-between w-full text-white/90">
-            <span class="text-sm font-medium">Virtual card</span>
-            <div
-              class="h-8 w-12 flex text-white relative items-center justify-end"
+          <div class="text-center mb-4">
+            <h3 class="text-2xl font-bold text-slate-900">
+              How would you like to proceed?
+            </h3>
+            <p class="text-sm font-medium text-slate-500 mt-2">
+              Select a payout method to continue
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+            <!-- Single Payout Card -->
+            <button
+              onclick={() => (journey = "single")}
+              class="group flex flex-col items-start p-8 rounded-3xl border-2 border-slate-100 bg-white hover:border-[#6a32fc] hover:shadow-lg transition-all text-left cursor-pointer relative overflow-hidden"
             >
               <div
-                class="h-8 w-8 rounded-full bg-red-500/80 mix-blend-screen absolute right-5"
+                class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-indigo-50/50 group-hover:bg-[#6a32fc]/5 transition-colors"
               ></div>
               <div
-                class="h-8 w-8 rounded-full bg-yellow-500/80 mix-blend-screen absolute right-0"
+                class="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-[#6a32fc] mb-6 group-hover:scale-110 transition-transform"
+              >
+                <User class="h-7 w-7" />
+              </div>
+              <h4 class="text-xl font-bold text-slate-900 mb-2">
+                Single Payout
+              </h4>
+              <p class="text-[13px] font-medium text-slate-500 leading-relaxed">
+                Create a payout explicitly for one payee. Fill out a simple form
+                to specify their unique virtual card amount, validity, and
+                details.
+              </p>
+            </button>
+
+            <!-- Bulk Upload Card -->
+            <button
+              onclick={() => (journey = "bulk")}
+              class="group flex flex-col items-start p-8 rounded-3xl border-2 border-slate-100 bg-white hover:border-[#7d326f] hover:shadow-lg transition-all text-left cursor-pointer relative overflow-hidden"
+            >
+              <div
+                class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#7d326f]/10/50 group-hover:bg-[#7d326f]/5 transition-colors"
               ></div>
-            </div>
+              <div
+                class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#7d326f]/10 text-[#7d326f] mb-6 group-hover:scale-110 transition-transform"
+              >
+                <FileUp class="h-7 w-7" />
+              </div>
+              <h4 class="text-xl font-bold text-slate-900 mb-2">Bulk Upload</h4>
+              <p class="text-[13px] font-medium text-slate-500 leading-relaxed">
+                Upload a CSV file to process multiple payouts instantly.
+                Automatically maps recipients to payments, expediting bulk
+                processing.
+              </p>
+            </button>
           </div>
+        </div>
+      {:else if journey === "single"}
+        <!-- Single Payout Form Logic Begins -->
+        <!-- Virtual Card Presentation -->
+        <div class="mt-8 flex w-full">
+          <!-- Virtual Card Node (Widened to w-96 from w-80, ratio maintained) -->
           <div
-            class="flex justify-between w-full text-white/90 mt-auto items-end"
+            class="flex h-60 w-96 flex-col justify-between rounded-3xl bg-[#7d326f] bg-gradient-to-br from-[#8a42fc] to-[#4a22dc] p-8 shadow-lg relative ring-2 ring-offset-2 ring-transparent"
           >
-            <span class="font-mono text-[15px] tracking-[0.3em]"
-              >**** **** **** 1289</span
-            >
-            <span class="font-mono text-sm font-medium">09/25</span>
-          </div>
-        </div>
-      </div>
-
-      <hr class="mt-10 border-slate-200" />
-
-      <!-- Form Section -->
-      <div class="mt-10 grid grid-cols-1 gap-12 lg:grid-cols-2">
-        <!-- Left Column: Payee & Date -->
-        <div class="flex flex-col gap-10">
-          <!-- 1. Payee Details -->
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-                >1</span
+            <div class="flex justify-between w-full text-white/90">
+              <span class="text-sm font-medium">Virtual card</span>
+              <div
+                class="h-8 w-12 flex text-white relative items-center justify-end"
               >
-              <h3 class="text-sm font-semibold text-slate-900">
-                Payee Details
-              </h3>
-            </div>
-            <div class="flex gap-4 pl-7">
-              <div class="w-1/2 relative flex flex-col gap-2">
-                <label
-                  for="selectProgram"
-                  class="text-xs font-medium text-slate-600"
-                  >Select Program</label
-                >
-                <CustomSelect
-                  id="selectProgram"
-                  bind:value={selectedProgram}
-                  options={programOptions}
-                />
-              </div>
-              <div class="w-1/2 relative flex flex-col gap-2">
-                <label
-                  for="selectPayee"
-                  class="text-xs font-medium text-slate-600"
-                  >Business receiving payment</label
-                >
-                <CustomSelect
-                  id="selectPayee"
-                  bind:value={selectedPayee}
-                  options={payeeOptions}
-                  disabled={csvData.length > 0}
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. Virtual Card Valid -->
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-                >3</span
-              >
-              <h3 class="text-sm font-semibold text-slate-900">Validity</h3>
-            </div>
-            <div class="pl-7">
-              <label
-                for="dateRange"
-                class="mb-2 block text-xs font-medium text-slate-600"
-                >Select Expiry</label
-              >
-              <!-- Custom Date Range Dropdown -->
-              <div class="relative w-[340px] mb-8">
-                <button
-                  type="button"
-                  onclick={() => {
-                    if (csvData.length === 0)
-                      showDateDropdown = !showDateDropdown;
-                  }}
-                  disabled={csvData.length > 0}
-                  class="relative flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-[13px] font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] transition-all disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed disabled:hover:border-slate-200"
-                >
-                  <Calendar
-                    class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-800"
-                    strokeWidth={2.5}
-                  />
-                  <span class="truncate">{computedDateRangeText}</span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-slate-800 transition-transform {showDateDropdown
-                      ? 'rotate-180'
-                      : ''}"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-
-                {#if showDateDropdown}
-                  <div
-                    class="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
-                  >
-                    {#each validityOptions as opt}
-                      <button
-                        type="button"
-                        class="flex w-full items-center px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 hover:text-[#0066cc] {selectedDateRange ===
-                        opt
-                          ? 'bg-[#0066cc]/5 text-[#0066cc]'
-                          : 'text-slate-600'}"
-                        onclick={() => {
-                          selectedDateRange = opt;
-                          showDateDropdown = false;
-                        }}
-                      >
-                        {opt}
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Payment Details & Transaction ID -->
-        <div class="flex flex-col gap-10">
-          <!-- 2. Payment Details -->
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-                >2</span
-              >
-              <h3 class="text-sm font-semibold text-slate-900">
-                Payment Details
-              </h3>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 pl-7">
-              <div class="sm:col-span-1 relative flex flex-col gap-2">
-                <label
-                  for="currencyType"
-                  class="text-xs font-medium text-slate-600"
-                  >Currency type</label
-                >
-                <CustomSelect
-                  id="currencyType"
-                  bind:value={currency}
-                  options={["INR", "USD", "EUR"]}
-                  disabled={csvData.length > 0}
-                />
-              </div>
-              <div class="sm:col-span-2 relative flex flex-col gap-2">
-                <label
-                  for="payableAmount"
-                  class="text-xs font-medium text-slate-600"
-                  >Payable Amount</label
-                >
-                <input
-                  id="payableAmount"
-                  type="text"
-                  bind:value={amount}
-                  disabled={csvData.length > 0}
-                  class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
-                />
-              </div>
-              <div class="sm:col-span-2 relative flex flex-col gap-2">
-                <label
-                  for="payThrough"
-                  class="text-xs font-medium text-slate-600"
-                  >Pay through card</label
-                >
                 <div
-                  class="relative h-12 w-full rounded-xl border border-slate-200 bg-white transition-colors flex items-center px-4 justify-between"
-                  class:hover:border-slate-300={csvData.length === 0}
-                  class:cursor-pointer={csvData.length === 0}
-                  class:opacity-50={csvData.length > 0}
-                  class:bg-slate-50={csvData.length > 0}
-                  class:cursor-not-allowed={csvData.length > 0}
+                  class="h-8 w-8 rounded-full bg-red-500/80 mix-blend-screen absolute right-5"
+                ></div>
+                <div
+                  class="h-8 w-8 rounded-full bg-yellow-500/80 mix-blend-screen absolute right-0"
+                ></div>
+              </div>
+            </div>
+            <div
+              class="flex justify-between w-full text-white/90 mt-auto items-end"
+            >
+              <span class="font-mono text-[15px] tracking-[0.3em]"
+                >**** **** **** 1289</span
+              >
+              <span class="font-mono text-sm font-medium">09/25</span>
+            </div>
+          </div>
+        </div>
+
+        <hr class="mt-10 border-slate-200" />
+
+        <!-- Form Section -->
+        <div class="mt-10 grid grid-cols-1 gap-12 lg:grid-cols-2">
+          <!-- Left Column: Payee, Expiry, TDS -->
+          <div class="flex flex-col gap-10">
+            <!-- 1. Payee Details -->
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                  >1</span
                 >
-                  <div class="flex items-center gap-2">
-                    <div
-                      class="flex -space-x-1.5 opacity-80 mix-blend-multiply"
-                    >
-                      <div class="h-4 w-4 rounded-full bg-red-500"></div>
-                      <div class="h-4 w-4 rounded-full bg-yellow-400"></div>
-                    </div>
-                    <span class="text-sm font-medium text-slate-600"
-                      >{payThroughCard}</span
-                    >
-                  </div>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="text-slate-400"><path d="m6 9 6 6 6-6" /></svg
+                <h3 class="text-sm font-semibold text-slate-900">
+                  Payee Details
+                </h3>
+              </div>
+              <div class="flex gap-4 pl-7">
+                <div class="w-1/2 relative flex flex-col gap-2">
+                  <label
+                    for="selectProgram"
+                    class="text-xs font-medium text-slate-600 flex items-center"
+                    >Select Program<span class="text-red-500 ml-1">*</span
+                    ></label
                   >
+                  <CustomSelect
+                    id="selectProgram"
+                    bind:value={selectedProgram}
+                    options={programOptions}
+                  />
+                </div>
+                <div class="w-1/2 relative flex flex-col gap-2">
+                  <label
+                    for="selectPayee"
+                    class="text-xs font-medium text-slate-600 flex items-center"
+                    >Business receiving payment<span class="text-red-500 ml-1"
+                      >*</span
+                    ></label
+                  >
+                  <CustomSelect
+                    id="selectPayee"
+                    bind:value={selectedPayee}
+                    options={payeeOptions}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Virtual Card Valid -->
+            <div class="flex flex-col gap-4 mt-6">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                  >3</span
+                >
+                <h3 class="text-sm font-semibold text-slate-900">Expiry</h3>
+              </div>
+              <div class="pl-7">
+                <label
+                  for="dateRange"
+                  class="mb-2 flex items-center text-xs font-medium text-slate-600"
+                  >Select validty<span class="text-red-500 ml-1">*</span></label
+                >
+                <!-- Custom Date Range Dropdown -->
+                <div class="relative w-[340px] mb-8">
+                  <button
+                    type="button"
+                    onclick={() => {
+                      if (csvData.length === 0)
+                        showDateDropdown = !showDateDropdown;
+                    }}
+                    disabled={csvData.length > 0}
+                    class="relative flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-[13px] font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] transition-all disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed disabled:hover:border-slate-200"
+                  >
+                    <Calendar
+                      class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-800"
+                      strokeWidth={2.5}
+                    />
+                    <span class="truncate">{computedDateRangeText}</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="text-slate-800 transition-transform {showDateDropdown
+                        ? 'rotate-180'
+                        : ''}"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+
+                  {#if showDateDropdown}
+                    <div
+                      class="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
+                    >
+                      {#each validityOptions as opt}
+                        <button
+                          type="button"
+                          class="flex w-full items-center px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 hover:text-[#7d326f] {selectedDateRange ===
+                          opt
+                            ? 'bg-[#7d326f]/5 text-[#7d326f]'
+                            : 'text-slate-600'}"
+                          onclick={() => {
+                            selectedDateRange = opt;
+                            showDateDropdown = false;
+                          }}
+                        >
+                          {opt}
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. TDS -->
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                  >5</span
+                >
+                <h3 class="text-sm font-semibold text-slate-900">TDS</h3>
+              </div>
+              <div class="pl-7">
+                <label
+                  for="tds"
+                  class="mb-2 block text-xs font-medium text-slate-600"
+                  >TDS Percentage (%)</label
+                >
+                <div class="relative w-[340px]">
+                  <input
+                    id="tds"
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="e.g. 10"
+                    bind:value={tdsPercentage}
+                    disabled={csvData.length > 0}
+                    class="h-12 w-full rounded-xl border border-slate-200 px-4 pr-10 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  />
+                  <div
+                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-slate-500 font-semibold text-sm"
+                  >
+                    %
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 4. Transaction ID -->
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-                >4</span
-              >
-              <h3 class="text-sm font-semibold text-slate-900">
-                Transaction ID (Optional)
-              </h3>
+          <!-- Right Column: Payment Details & Transaction ID -->
+          <div class="flex flex-col gap-10">
+            <!-- 2. Payment Details -->
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                  >2</span
+                >
+                <h3 class="text-sm font-semibold text-slate-900">
+                  Payment Details
+                </h3>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 pl-7">
+                <div class="sm:col-span-1 relative flex flex-col gap-2">
+                  <label
+                    for="currencyType"
+                    class="text-xs font-medium text-slate-600 flex items-center"
+                    >Currency<span class="text-red-500 ml-1">*</span></label
+                  >
+                  <CustomSelect
+                    id="currencyType"
+                    bind:value={currency}
+                    options={["INR", "USD", "EUR"]}
+                    disabled={csvData.length > 0}
+                  />
+                </div>
+                <div class="sm:col-span-2 relative flex flex-col gap-2">
+                  <label
+                    for="payableAmount"
+                    class="text-xs font-medium text-slate-600 flex items-center"
+                    >Payable Amount<span class="text-red-500 ml-1">*</span
+                    ></label
+                  >
+                  <input
+                    id="payableAmount"
+                    type="text"
+                    bind:value={amount}
+                    disabled={csvData.length > 0}
+                    class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div class="sm:col-span-2 relative flex flex-col gap-2">
+                  <label
+                    for="payThrough"
+                    class="text-xs font-medium text-slate-600 flex items-center"
+                    >Pay through card<span class="text-red-500 ml-1">*</span
+                    ></label
+                  >
+                  <div
+                    class="relative h-12 w-full rounded-xl border border-slate-200 bg-white transition-colors flex items-center px-4 justify-between"
+                    class:hover:border-slate-300={csvData.length === 0}
+                    class:cursor-pointer={csvData.length === 0}
+                    class:opacity-50={csvData.length > 0}
+                    class:bg-slate-50={csvData.length > 0}
+                    class:cursor-not-allowed={csvData.length > 0}
+                  >
+                    <div class="flex items-center gap-2">
+                      <div
+                        class="flex -space-x-1.5 opacity-80 mix-blend-multiply"
+                      >
+                        <div class="h-4 w-4 rounded-full bg-red-500"></div>
+                        <div class="h-4 w-4 rounded-full bg-yellow-400"></div>
+                      </div>
+                      <span class="text-sm font-medium text-slate-600"
+                        >{payThroughCard}</span
+                      >
+                    </div>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="text-slate-400"><path d="m6 9 6 6 6-6" /></svg
+                    >
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="pl-7">
-              <label
-                for="txId"
-                class="mb-2 block text-xs font-medium text-slate-600"
-                >Transaction ID</label
-              >
-              <input
-                id="txId"
-                type="text"
-                placeholder="e.g. VAD455648"
-                bind:value={txId}
-                disabled={csvData.length > 0}
-                class="h-12 w-[340px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
-              />
+
+            <!-- 4. Transaction ID -->
+            <div class="flex flex-col gap-4 mt-6">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                  >4</span
+                >
+                <h3 class="text-sm font-semibold text-slate-900">
+                  Tracking ID
+                </h3>
+              </div>
+              <div class="pl-7">
+                <label
+                  for="txId"
+                  class="mb-2 block text-xs font-medium text-slate-600"
+                  >Transaction ID</label
+                >
+                <input
+                  id="txId"
+                  type="text"
+                  placeholder="e.g. VAD455648"
+                  bind:value={txId}
+                  disabled={csvData.length > 0}
+                  class="h-12 w-[340px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+        <!-- Deduction Settings -->
+        <!-- <div class="flex flex-col gap-4 mt-6">
+          <div class="flex items-center gap-2 border-t border-slate-200 pt-6">
+            <h3 class="text-sm font-semibold text-slate-900">
+              Deduction Settings
+            </h3>
+          </div> -->
+        <!-- ["None", "Standard Deduction %", "GST %", "Both"] -->
+        <!-- <div class="flex gap-4 pb-4 overflow-x-auto">
+            {#each ["None", "GST %"] as setting}
+              <button
+                onclick={() => (deductionSetting = setting)}
+                disabled={csvData.length > 0}
+                class="relative h-[84px] flex-1 min-w-[140px] rounded-xl border px-2 py-3 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed
+                    {deductionSetting === setting && csvData.length === 0
+                  ? 'border-[#7d326f] bg-purple-50/50 text-[#7d326f] flex flex-col items-center justify-center'
+                  : 'border-slate-200 text-slate-400 hover:bg-slate-50 flex flex-col items-center justify-center'}"
+              >
+                <div class="flex items-center gap-2">
+                  <div
+                    class="h-4 w-4 shrink-0 rounded-full border-2 {deductionSetting ===
+                    setting
+                      ? 'border-[#0066cc] bg-[#0066cc] outline outline-2 outline-offset-1 outline-[#0066cc]'
+                      : 'border-slate-300'}"
+                  ></div>
+                  <span class="text-center">{setting}</span>
+                </div>
 
-      <!-- Action Button -->
-      <div class="mt-12 flex w-full justify-end">
-        <button
-          onclick={handlePreview}
-          disabled={isUploadingCsv || showCsvModal || isPreviewLoading}
-          class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center gap-2"
-        >
-          {#if isPreviewLoading}
+                {#if deductionSetting === setting && (setting === "GST %" || setting === "Standard Deduction %")}
+                  <div class="h-6 mt-2 w-full flex justify-center">
+                    <div
+                      class="text-[10px] bg-white border border-slate-200 px-3 py-1 rounded w-3/4 text-center font-semibold text-slate-700 shadow-sm"
+                    >
+                      {setting === "GST %" ? "0 %" : "0 %"}
+                    </div>
+                  </div>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        </div> -->
+
+        <!-- Dynamic Program Fields (Extracted) -->
+        {#if realProgram?.additionalFields?.length > 0}
+          <div class="flex flex-col gap-4 mt-8 pt-6 border-t border-slate-200">
+            <div class="flex items-center gap-2">
+              <span
+                class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                >6</span
+              >
+              <h3 class="text-sm font-semibold text-slate-900">
+                Additional Info
+              </h3>
+            </div>
+            <div class="grid grid-cols-1 gap-12 lg:grid-cols-2 mt-2">
+              {#each realProgram.additionalFields as field}
+                <div class="flex flex-col gap-2">
+                  <label
+                    for={field.key}
+                    class="text-xs font-medium text-slate-600 flex items-center"
+                    >{field.key}
+                    {#if field.required}<span class="text-red-500 ml-1">*</span
+                      >{/if}</label
+                  >
+                  <input
+                    id={field.key}
+                    type="text"
+                    placeholder={`Enter ${field.key}`}
+                    bind:value={dynamicFieldValues[field.key]}
+                    required={field.required}
+                    disabled={csvData.length > 0}
+                    class="h-12 w-[340px] rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Action Button & Errors -->
+        <div class="mt-12 flex flex-col items-end gap-4 w-full justify-end">
+          {#if validationError}
             <div
-              class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
-            ></div>
-            Loading Preview...
-          {:else}
-            Preview Card
+              class="rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm font-medium text-rose-600 flex items-center gap-2 max-w-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                /><line
+                  x1="12"
+                  y1="8"
+                  x2="12"
+                  y2="12"
+                /><line
+                  x1="12"
+                  y1="16"
+                  x2="12.01"
+                  y2="16"
+                /></svg
+              >
+              {validationError}
+            </div>
           {/if}
-        </button>
-      </div>
+          <button
+            onclick={handlePreview}
+            disabled={isUploadingCsv || isPreviewLoading}
+            class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {#if isPreviewLoading}
+              <div
+                class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+              ></div>
+              Loading Preview...
+            {:else}
+              Preview Card
+            {/if}
+          </button>
+        </div>
+      {:else if journey === "bulk"}
+        <!-- Bulk Upload Journey -->
+        <div class="mt-8 w-full max-w-4xl">
+          <div class="flex flex-col gap-10">
+            <!-- Step 1: Program Selection -->
+            <div class="flex flex-col gap-4">
+              <div class="flex items-center gap-2">
+                <span
+                  class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                  >1</span
+                >
+                <h3 class="text-sm font-semibold text-slate-900">
+                  Select Program
+                </h3>
+              </div>
+              <div class="pl-7">
+                <div class="w-full flex items-end gap-4">
+                  <div class="w-full sm:w-1/2 relative flex flex-col gap-2">
+                    <label
+                      for="bulkSelectProgram"
+                      class="text-xs font-medium text-slate-600"
+                    >
+                      Select Program <span class="text-red-500">*</span>
+                    </label>
+                    <CustomSelect
+                      id="bulkSelectProgram"
+                      bind:value={selectedProgram}
+                      options={programOptions}
+                      disabled={bulkStep === "upload"}
+                    />
+                  </div>
+                  {#if journey === "bulk"}
+                    <div class="h-12 flex items-center">
+                      {#if !isTemplateReady}
+                        <div
+                          class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-500 blink"
+                        >
+                          <div
+                            class="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#7d326f]"
+                          ></div>
+                          Preparing template...
+                        </div>
+                      {:else}
+                        <button
+                          onclick={downloadTemplate}
+                          class="flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-[#7d326f] cursor-pointer"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="text-[#7d326f]"
+                            ><path
+                              d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+                            /><polyline points="7 10 12 15 17 10" /><line
+                              x1="12"
+                              x2="12"
+                              y1="15"
+                              y2="3"
+                            /></svg
+                          >
+                          Download Template
+                        </button>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- Persistent Payee Search Block -->
+                <div
+                  class="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4"
+                >
+                  <!-- Payee Search box for copying exact emails to CSV -->
+                  <div class="w-full sm:w-1/2 relative flex flex-col gap-2">
+                    <label
+                      for="searchPayee"
+                      class="text-xs font-medium text-slate-600"
+                    >
+                      Search Payee
+                    </label>
+                    <input
+                      id="searchPayee"
+                      type="text"
+                      bind:value={payeeSearchTerm}
+                      placeholder="Type business name or email..."
+                      class="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-800 outline-none focus:border-[#7d326f] focus:ring-1 focus:ring-[#7d326f] bg-white transition-colors"
+                    />
+                  </div>
+
+                  <!-- Search Results -->
+                  {#if payeeSearchTerm.trim()}
+                    <div
+                      transition:slide={{ duration: 250 }}
+                      class="flex flex-col gap-2 w-full max-w-2xl bg-slate-50 border border-slate-100 rounded-xl p-3"
+                    >
+                      {#if filteredPayees.length > 0}
+                        {#each filteredPayees as payee}
+                          <div
+                            class="flex items-center justify-between border-b border-slate-200/60 pb-2 last:border-0 last:pb-0"
+                          >
+                            <div class="flex flex-col">
+                              <span class="text-sm font-semibold text-slate-800"
+                                >{payee.businessName || payee.name}</span
+                              >
+                              <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="text-xs font-medium text-slate-500"
+                                  >{payee.email}</span
+                                >
+                                {#if payee.city || payee.state}
+                                  <span class="text-slate-300 text-[10px]"
+                                    >•</span
+                                  >
+                                  <span
+                                    class="text-xs font-medium text-slate-500"
+                                    >{[payee.city, payee.state]
+                                      .filter(Boolean)
+                                      .join(", ")}</span
+                                  >
+                                {/if}
+                              </div>
+                            </div>
+                            <button
+                              onclick={() => copyToClipboard(payee.email)}
+                              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:text-[#7d326f] hover:border-[#7d326f] transition-colors cursor-pointer shadow-sm"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                ><rect
+                                  width="14"
+                                  height="14"
+                                  x="8"
+                                  y="8"
+                                  rx="2"
+                                  ry="2"
+                                /><path
+                                  d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+                                /></svg
+                              >
+                              Copy Email
+                            </button>
+                          </div>
+                        {/each}
+                        {#if programPayees.length > 5 && filteredPayees.length === 5}
+                          <span
+                            class="text-[10px] text-center text-slate-400 font-medium italic pt-1"
+                            >Showing top 5 matches...</span
+                          >
+                        {/if}
+                      {:else}
+                        <span
+                          class="text-sm text-slate-500 font-medium py-2 text-center"
+                          >No payees found for "{payeeSearchTerm}"</span
+                        >
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+
+                {#if bulkStep === "program" && csvData.length === 0}
+                  <div class="mt-4">
+                    <button
+                      onclick={() => fileInput?.click()}
+                      disabled={isUploadingCsv ||
+                        selectedProgram === "No Active Programs"}
+                      class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {#if isUploadingCsv}
+                        <div
+                          class="h-4 w-4 animate-spin rounded-full border-2 border-slate-50 border-t-transparent"
+                        ></div>
+                        Uploading...
+                      {:else}
+                        <Upload class="h-4 w-4" />
+                        Upload File
+                      {/if}
+                    </button>
+                    <!-- Move hidden file input out here so it's clickable from step 1 -->
+                    <input
+                      type="file"
+                      accept=".csv"
+                      class="hidden"
+                      bind:this={fileInput}
+                      onchange={handleCsvUpload}
+                    />
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Step 2: Upload CSV -->
+            {#if bulkStep === "upload"}
+              <div class="flex flex-col gap-4 mt-6 fade-in">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+                    >2</span
+                  >
+                  <h3 class="text-sm font-semibold text-slate-900">
+                    Upload Data
+                  </h3>
+                </div>
+
+                <div class="pl-7 w-full">
+                  {#if csvData.length === 0}
+                    <!-- The blank upload area is no longer strictly needed if we jump straight to file select, but keeping it visible as a loading state if needed -->
+                    <div
+                      class="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl p-10 bg-slate-50"
+                    >
+                      <div
+                        class="h-8 w-8 animate-spin rounded-full border-2 border-slate-500 border-t-transparent"
+                      ></div>
+                      <p class="text-sm font-medium text-slate-600 mt-4">
+                        Processing CSV...
+                      </p>
+                    </div>
+                  {:else}
+                    <!-- Inline Data Layout -->
+                    <div class="flex flex-col gap-6 w-full fade-in">
+                      <div
+                        class="flex items-center justify-between bg-slate-50 rounded-xl p-4 border border-slate-200"
+                      >
+                        <div class="flex items-center gap-4">
+                          <div
+                            class="flex h-10 w-10 items-center justify-center rounded-lg bg-[#7d326f]/20 text-[#7d326f]"
+                          >
+                            <FileUp class="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h4 class="text-sm font-bold text-slate-900">
+                              CSV Imported Successfully
+                            </h4>
+                            <p
+                              class="text-xs font-medium text-slate-500 mt-0.5"
+                            >
+                              {csvData.length} Valid Records Ready
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onclick={() => {
+                            csvData = [];
+                            bulkStep = "program";
+                            if (fileInput) fileInput.value = "";
+                          }}
+                          class="text-sm font-semibold text-slate-500 hover:text-rose-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                        >
+                          Remove File
+                        </button>
+                      </div>
+
+                      <!-- Internal Data Grid -->
+                      <div
+                        class="w-full overflow-hidden border border-slate-200 rounded-2xl shadow-sm"
+                      >
+                        <div class="max-h-[350px] overflow-auto">
+                          <table
+                            class="w-full text-left text-[13px] whitespace-nowrap"
+                          >
+                            <thead
+                              class="bg-[#f8f9fa] text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-sm"
+                            >
+                              <tr>
+                                <th class="p-4 border-r border-slate-100"
+                                  >Business Name</th
+                                >
+                                <th class="p-4 border-r border-slate-100"
+                                  >Email</th
+                                >
+                                <th class="p-4 border-r border-slate-100"
+                                  >Amount</th
+                                >
+                                <th class="p-4 border-r border-slate-100"
+                                  >Extra Info</th
+                                >
+                                <th class="p-4">Validity</th>
+                              </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                              {#each csvData as row (row.id)}
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                  <td
+                                    class="p-4 font-semibold text-[#003366] border-r border-slate-100"
+                                    >{row.businessName}</td
+                                  >
+                                  <td
+                                    class="p-4 font-medium text-slate-600 border-r border-slate-100"
+                                    >{row.email}</td
+                                  >
+                                  <td
+                                    class="p-4 font-semibold text-slate-800 border-r border-slate-100"
+                                    >{row.amount} {row.currency}</td
+                                  >
+                                  <td
+                                    class="p-4 border-r border-slate-100 align-middle"
+                                  >
+                                    {#if row.extraFields && Object.keys(row.extraFields).length > 0}
+                                      <div class="flex flex-wrap gap-1">
+                                        {#each Object.entries(row.extraFields).slice(0, 2) as [key, val]}
+                                          <span
+                                            class="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10"
+                                            title={`${key}: ${val}`}
+                                          >
+                                            <span class="font-semibold mr-1"
+                                              >{key}:</span
+                                            >
+                                            {val}
+                                          </span>
+                                        {/each}
+                                        {#if Object.keys(row.extraFields).length > 2}
+                                          <span
+                                            class="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-inset ring-slate-500/10"
+                                            title={Object.entries(
+                                              row.extraFields
+                                            )
+                                              .slice(2)
+                                              .map(([k, v]) => `${k}: ${v}`)
+                                              .join("\n")}
+                                          >
+                                            +{Object.keys(row.extraFields)
+                                              .length - 2} more
+                                          </span>
+                                        {/if}
+                                      </div>
+                                    {:else}
+                                      <span
+                                        class="text-slate-400 italic text-[11px]"
+                                        >N/A</span
+                                      >
+                                    {/if}
+                                  </td>
+                                  <td class="p-4 font-medium text-slate-600"
+                                    >{row.validity}</td
+                                  >
+                                </tr>
+                              {/each}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <!-- Action Button specific to Bulk Submits -->
+                      <div
+                        class="flex w-full justify-end gap-4 border-t border-slate-100 pt-6 mt-2"
+                      >
+                        <button
+                          onclick={handleCancel}
+                          class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onclick={() => {
+                            handleSubmit();
+                          }}
+                          class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer"
+                        >
+                          Submit Payouts
+                        </button>
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -642,7 +1364,7 @@
                   >CSV Payouts</span
                 >
                 <span
-                  class="text-xs font-medium bg-blue-50 text-[#0066cc] px-2 py-1 rounded-md"
+                  class="text-xs font-medium bg-[#7d326f]/10 text-[#7d326f] px-2 py-1 rounded-md"
                   >{csvData.length} records</span
                 >
               </div>
@@ -654,10 +1376,15 @@
                   >
                     <div class="flex justify-between items-start">
                       <div class="flex flex-col">
-                        <span class="font-semibold text-slate-900 text-sm truncate max-w-[150px]">{row.businessName}</span>
-                        <span class="font-medium text-slate-500 text-xs mt-0.5">{row.email}</span>
+                        <span
+                          class="font-semibold text-slate-900 text-sm truncate max-w-[150px]"
+                          >{row.businessName}</span
+                        >
+                        <span class="font-medium text-slate-500 text-xs mt-0.5"
+                          >{row.email}</span
+                        >
                       </div>
-                      <span class="font-bold text-[#0066cc] text-sm"
+                      <span class="font-bold text-[#7d326f] text-sm"
                         >{row.currency === "INR" ? "₹" : row.currency}
                         {row.amount}</span
                       >
@@ -726,7 +1453,7 @@
         <div class="mt-6 shrink-0 pt-2 bg-white sticky bottom-0">
           <button
             onclick={handleSubmit}
-            class="w-full rounded-2xl bg-[#0066cc] py-4 text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
+            class="w-full rounded-2xl bg-[#7d326f] py-4 text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer"
           >
             Submit
           </button>
@@ -745,7 +1472,7 @@
       >
         <div class="flex flex-col items-center mt-4 text-center">
           <div
-            class="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-4 border-slate-50 bg-[#0066cc] text-white shadow-lg"
+            class="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-4 border-slate-50 bg-[#7d326f] text-white shadow-lg"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -761,7 +1488,7 @@
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <h2 class="text-[26px] font-semibold tracking-tight text-[#0066cc]">
+          <h2 class="text-[26px] font-semibold tracking-tight text-[#7d326f]">
             Card Generated
           </h2>
         </div>
@@ -789,12 +1516,12 @@
                         {row.email}
                       </p>
                       <span class="text-[10px] font-medium text-slate-400 mt-1"
-                        >Validity: <span
-                          class="text-slate-600 font-semibold">{row.validity}</span
+                        >Validity: <span class="text-slate-600 font-semibold"
+                          >{row.validity}</span
                         ></span
                       >
                     </div>
-                    <span class="text-md font-bold text-[#0066cc]"
+                    <span class="text-md font-bold text-[#7d326f]"
                       >{row.currency === "INR" ? "₹" : row.currency}
                       {row.amount}</span
                     >
@@ -826,97 +1553,10 @@
 
         <button
           onclick={handleFinish}
-          class="mt-6 w-full rounded-xl bg-[#0066cc] py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
+          class="mt-6 w-full rounded-xl bg-[#7d326f] py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer"
         >
           Done
         </button>
-      </div>
-    </div>
-  {/if}
-
-  <!-- CSV Modal Overlay -->
-  {#if showCsvModal}
-    <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-    >
-      <div
-        class="relative w-full max-w-5xl bg-white rounded-3xl p-8 shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300"
-      >
-        <div
-          class="flex items-center justify-between mb-8 border-b border-slate-100 pb-4"
-        >
-          <div>
-            <h2 class="text-2xl font-bold text-slate-900">Imported CSV Data</h2>
-            <p class="text-sm text-slate-500 mt-1">
-              Data extracted from the uploaded CSV file. Read-only preview.
-            </p>
-          </div>
-          <button
-            onclick={handleCsvDone}
-            class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors cursor-pointer border border-slate-200"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div
-          class="flex-1 overflow-auto border border-slate-200 rounded-2xl shadow-sm"
-        >
-          <table class="w-full text-left text-[13px] whitespace-nowrap">
-            <thead
-              class="bg-[#f8f9fa] text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-sm"
-            >
-              <tr>
-                <th class="p-4 border-r border-slate-100">Business Name</th>
-                <th class="p-4 border-r border-slate-100">Email</th>
-                <th class="p-4 border-r border-slate-100">Amount</th>
-                <th class="p-4">Validity</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              {#each csvData as row (row.id)}
-                <tr class="hover:bg-slate-50 transition-colors">
-                  <td
-                    class="p-4 font-semibold text-[#003366] border-r border-slate-100"
-                    >{row.businessName}</td
-                  >
-                  <td
-                    class="p-4 font-medium text-slate-600 border-r border-slate-100"
-                    >{row.email}</td
-                  >
-                  <td
-                    class="p-4 font-semibold text-slate-800 border-r border-slate-100"
-                    >{row.amount} {row.currency}</td
-                  >
-                  <td
-                    class="p-4 font-medium text-slate-600"
-                    >{row.validity}</td
-                  >
-                </tr>
-              {/each}
-              {#if csvData.length === 0}
-                <tr>
-                  <td
-                    colspan="4"
-                    class="p-12 text-center text-sm font-medium text-slate-500"
-                    >No valid records found in CSV.</td
-                  >
-                </tr>
-              {/if}
-            </tbody>
-          </table>
-        </div>
-
-        <div
-          class="mt-8 flex justify-end items-center bg-slate-50 p-5 rounded-2xl border border-slate-200"
-        >
-          <button
-            onclick={handleCsvDone}
-            class="rounded-xl bg-[#0066cc] px-8 py-3.5 text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   {/if}

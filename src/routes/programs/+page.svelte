@@ -1,9 +1,18 @@
 <script lang="ts">
   import TopBar from "$lib/components/dashboard/TopBar.svelte";
   import { goto } from "$app/navigation";
-  import { User, AlertCircle, X, CheckCircle2 } from "lucide-svelte";
+  import {
+    User,
+    AlertCircle,
+    X,
+    CheckCircle2,
+    Eye,
+    Copy,
+    ChevronLeft,
+    ChevronRight
+  } from "lucide-svelte";
   import { authState } from "$lib/state/auth.svelte.js";
-  import { dbStore, cancelEnrollment } from "$lib/state/db.svelte.js";
+  import { dbStore, cancelEnrollment, apiCall } from "$lib/state/db.svelte.js";
 
   // Derive target identity securely
   let activeUser = $derived(
@@ -16,7 +25,10 @@
       return String(p.payerId) === String(activeUser.id);
     }
     if (activeUser?.name && p?.createdBy) {
-      return String(p.createdBy).toLowerCase() === String(activeUser.name).toLowerCase();
+      return (
+        String(p.createdBy).toLowerCase() ===
+        String(activeUser.name).toLowerCase()
+      );
     }
     return false;
   };
@@ -55,6 +67,46 @@
       cancelEnrollment(id, activeUser.id);
     }
     activeCancelId = null;
+  }
+
+  // Payee Dropdown State & Pagination
+  let expandedProgramId = $state<string | null>(null);
+  let programPayees = $state<any[]>([]);
+  let isFetchingPayees = $state(false);
+  let payeePage = $state(1);
+  const payeesPerPage = 5;
+
+  let paginatedPayees = $derived.by(() => {
+    const start = (payeePage - 1) * payeesPerPage;
+    const end = start + payeesPerPage;
+    return programPayees.slice(start, end);
+  });
+
+  async function togglePayees(programId: string) {
+    if (expandedProgramId === programId) {
+      expandedProgramId = null;
+      programPayees = [];
+      return;
+    }
+    expandedProgramId = programId;
+    isFetchingPayees = true;
+    payeePage = 1;
+    programPayees = [];
+
+    try {
+      const res = await apiCall(`/programs/payees?programId=${programId}`);
+      if (res && res.payees) {
+        programPayees = res.payees;
+      }
+    } catch (e) {
+      console.error("Failed to load payees", e);
+    } finally {
+      isFetchingPayees = false;
+    }
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text);
   }
 </script>
 
@@ -158,14 +210,139 @@
                       >
                     </div>
 
-                    <button
-                      onclick={() => goto(`/?editProgram=${program.id}`)}
-                      class="text-[13px] font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-[#7d326f] shadow-sm transition-colors rounded-xl flex items-center gap-1.5 px-4 py-2 cursor-pointer"
-                    >
-                      Manage
-                    </button>
+                    <div class="flex items-center gap-3">
+                      <button
+                        onclick={() => goto(`/?editProgram=${program.id}`)}
+                        class="text-[13px] font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-[#7d326f] shadow-sm transition-colors rounded-xl flex items-center gap-1.5 px-4 py-2 cursor-pointer"
+                      >
+                        Manage
+                      </button>
+                      <button
+                        onclick={() => togglePayees(program.id)}
+                        class="text-[13px] font-semibold text-[#0066cc] bg-blue-50/50 hover:bg-blue-50 transition-colors rounded-xl flex items-center gap-2 px-4 py-2 cursor-pointer border border-blue-100"
+                      >
+                        <Eye class="h-4 w-4" /> View All Payees
+                      </button>
+                    </div>
                   {/if}
                 </div>
+
+                <!-- Expanded Payees Area -->
+                {#if expandedProgramId === program.id}
+                  <div
+                    class="mt-4 w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2"
+                  >
+                    {#if isFetchingPayees}
+                      <div class="flex items-center justify-center p-8">
+                        <div
+                          class="h-6 w-6 animate-spin rounded-full border-2 border-[#0066cc] border-t-transparent"
+                        ></div>
+                      </div>
+                    {:else if programPayees.length === 0}
+                      <div
+                        class="flex items-center justify-center p-8 text-sm text-slate-500 font-medium"
+                      >
+                        No payees found for this program.
+                      </div>
+                    {:else}
+                      <div class="max-h-[300px] overflow-y-auto">
+                        <table class="w-full text-left text-[13px]">
+                          <thead
+                            class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200"
+                          >
+                            <tr>
+                              <th class="px-5 py-3 font-semibold text-slate-600"
+                                >Payee Name</th
+                              >
+                              <th class="px-5 py-3 font-semibold text-slate-600"
+                                >City</th
+                              >
+                              <th class="px-5 py-3 font-semibold text-slate-600"
+                                >State</th
+                              >
+                              <th class="px-5 py-3 font-semibold text-slate-600"
+                                >Email Address</th
+                              >
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-100">
+                            {#each paginatedPayees as payee}
+                              <tr class="hover:bg-slate-50 transition-colors">
+                                <td
+                                  class="px-5 py-3.5 font-semibold text-[#003366]"
+                                >
+                                  {payee.businessName || payee.name || "N/A"}
+                                </td>
+                                <td
+                                  class="px-5 py-3.5 font-semibold text-[#003366]"
+                                >
+                                  {payee.city || "N/A"}
+                                </td>
+                                <td
+                                  class="px-5 py-3.5 font-semibold text-[#003366]"
+                                >
+                                  {payee.state || "N/A"}
+                                </td>
+                                <td class="px-5 py-3.5">
+                                  <div class="flex items-center gap-3">
+                                    <span class="text-slate-600 font-medium"
+                                      >{payee.email}</span
+                                    >
+                                    {#if payee.email}
+                                      <button
+                                        onclick={() =>
+                                          copyToClipboard(payee.email)}
+                                        class="text-slate-400 hover:text-[#0066cc] transition-colors cursor-pointer"
+                                        title="Copy Email"
+                                      >
+                                        <Copy class="h-3.5 w-3.5" />
+                                      </button>
+                                    {/if}
+                                  </div>
+                                </td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <!-- Pagination Controls -->
+                      {#if programPayees.length > payeesPerPage}
+                        <div
+                          class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-3"
+                        >
+                          <span class="text-[12px] font-medium text-slate-500">
+                            Showing {(payeePage - 1) * payeesPerPage + 1} to {Math.min(
+                              payeePage * payeesPerPage,
+                              programPayees.length
+                            )} of {programPayees.length}
+                          </span>
+                          <div class="flex items-center gap-2">
+                            <button
+                              disabled={payeePage === 1}
+                              onclick={() => payeePage--}
+                              class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <ChevronLeft class="h-4 w-4" />
+                            </button>
+                            <span
+                              class="text-[13px] font-semibold text-slate-700 px-2"
+                              >{payeePage}</span
+                            >
+                            <button
+                              disabled={payeePage * payeesPerPage >=
+                                programPayees.length}
+                              onclick={() => payeePage++}
+                              class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <ChevronRight class="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      {/if}
+                    {/if}
+                  </div>
+                {/if}
               </div>
             </div>
           {/each}

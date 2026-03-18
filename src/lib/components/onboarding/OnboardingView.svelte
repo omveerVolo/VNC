@@ -32,12 +32,22 @@
       step = initialStep;
     }
     if (editProgramId && !initialized) {
-      const existing = dbStore.programs.find(
+      const existing: any = dbStore.programs.find(
         (p: any) => p.id === editProgramId
       );
       if (existing) {
         programName = existing.name;
         businessCategory = existing.category;
+        
+        if (existing.additionalFields && existing.additionalFields.length > 0) {
+          customFields = existing.additionalFields.map((f: any) => ({
+            key: f.key,
+            type: "string",
+            required: f.required,
+            isExisting: true
+          }));
+        }
+        
         initialized = true;
       }
     }
@@ -47,8 +57,9 @@
   let programName = $state("");
   let businessType = $state("Healthcare");
   let businessCategory = $state("Hospital");
-  let deductionSetting = $state("None");
+  let requestPhysicalCard = $state(false);
   let manualEmail = $state(""); // Stores manual email input
+  let customFields = $state<{key: string, type: string, required: boolean, isExisting?: boolean}[]>([]);
 
   // Used for UI feedback
   let addedPayees = $state<string[]>([]); // This now holds selected payee IDs
@@ -56,6 +67,7 @@
   let showInvitationSuccess = $state(false);
   let showProviderDropdown = $state(false);
   let hasSubmitted = $state(false);
+  let errorMessage = $state("");
 
   let allPayees = $state<any[]>([]);
   let availableTrustedPayees = $derived(
@@ -124,7 +136,21 @@
   }
 
   function nextStep() {
-    if (step === 4 && !hasSubmitted) {
+    errorMessage = "";
+    if (step === 3 && !programName.trim()) {
+      errorMessage = "Program Name is required to proceed.";
+      return;
+    }
+
+    if (step === 4) {
+      const hasEmptyKeys = customFields.some(f => !f.key.trim());
+      if (hasEmptyKeys) {
+        errorMessage = "Please fill in all custom field names or remove empty fields.";
+        return;
+      }
+    }
+
+    if (step === 5 && !hasSubmitted) {
       hasSubmitted = true;
       // addedPayees holds the true list of payee IDs selected via checkboxes
       if (editProgramId) {
@@ -133,10 +159,11 @@
           programName,
           businessType,
           businessCategory,
-          addedPayees
+          addedPayees,
+          customFields
         );
       } else {
-        createProgram(programName, businessType, businessCategory, addedPayees);
+        createProgram(programName, businessType, businessCategory, addedPayees, customFields);
       }
     }
     step += 1;
@@ -523,44 +550,13 @@
           </div>
         </div>
 
-        <div class="mt-8">
-          <span class="block text-xs font-semibold text-slate-700"
-            >Deduction Settings *</span
-          >
-          <div class="mt-3 flex gap-4 pb-4 overflow-x-auto">
-            {#each ["None", "Standard Deduction %", "GST %", "Both"] as setting}
-              <button
-                onclick={() => (deductionSetting = setting)}
-                class="relative h-[84px] flex-1 min-w-[180px] rounded-xl border px-2 py-3 text-xs font-semibold transition-all cursor-pointer
-                {deductionSetting === setting
-                  ? 'border-[#7d326f] bg-purple-50/50 text-[#7d326f] flex flex-col items-center justify-center'
-                  : 'border-slate-200 text-slate-400 hover:bg-slate-50 flex flex-col items-center justify-center'}"
-              >
-                <div class="flex items-center gap-2">
-                  <div
-                    class="h-4 w-4 shrink-0 rounded-full border-2 {deductionSetting ===
-                    setting
-                      ? 'border-[#0066cc] bg-[#0066cc] outline outline-2 outline-offset-1 outline-[#0066cc]'
-                      : 'border-slate-300'}"
-                  ></div>
-                  <span class="text-center">{setting}</span>
-                </div>
-
-                {#if deductionSetting === setting && (setting === "GST %" || setting === "Standard Deduction %")}
-                  <div class="h-6 mt-2 w-full flex justify-center">
-                    <div
-                      class="text-[10px] bg-white border border-slate-200 px-3 py-1 rounded w-3/4 text-center font-semibold text-slate-700 shadow-sm"
-                    >
-                      {setting === "GST %" ? "0 %" : "0 %"}
-                    </div>
-                  </div>
-                {/if}
-              </button>
-            {/each}
-          </div>
-        </div>
-
         <div class="mt-10 flex flex-col items-start gap-4">
+          {#if errorMessage}
+            <div class="text-sm font-semibold text-rose-500 flex items-center gap-2 mb-2 bg-rose-50 px-4 py-2 rounded-lg border border-rose-100">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+               {errorMessage}
+            </div>
+          {/if}
           <button
             onclick={nextStep}
             class="h-14 w-[220px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
@@ -570,8 +566,111 @@
         </div>
       </div>
 
-      <!-- STEP 4: Add Payees -->
+      <!-- STEP 4: Custom Fields Configuration -->
     {:else if step === 4}
+      <div class="w-full max-w-4xl rounded-[32px] bg-white p-12 shadow-xl relative mt-12">
+        <button
+          onclick={handleBack}
+          class="absolute top-8 right-8 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900"
+        >
+          <ArrowLeft class="h-4 w-4" /> Back
+        </button>
+
+        <h2 class="text-2xl font-semibold text-slate-900 mt-6 md:mt-0">
+          Program Custom Fields
+        </h2>
+        <p class="mt-1 text-sm font-medium text-slate-500">
+          Define unique transaction fields required from payees for this program.
+        </p>
+
+        <div class="mt-8 flex flex-col gap-6 w-full">
+          {#each customFields as field, index (index)}
+            <div class="flex flex-col md:flex-row items-end gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 transition-all">
+              <div class="flex flex-col gap-2 w-full md:w-1/3">
+                <label for={`fieldKey-${index}`} class="text-xs font-semibold text-slate-700">Field Name<span class="text-red-500">*</span></label>
+                <input
+                  id={`fieldKey-${index}`}
+                  type="text"
+                  bind:value={field.key}
+                  disabled={field.isExisting}
+                  oninput={() => errorMessage = ""}
+                  placeholder="e.g. Invoice Number"
+                  class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc] disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <div class="flex flex-col gap-2 w-full md:w-1/3 relative">
+                <label for={`fieldType-${index}`} class="text-xs font-semibold text-slate-700">Data Type<span class="text-red-500">*</span></label>
+                <CustomSelect
+                  id={`fieldType-${index}`}
+                  bind:value={field.type}
+                  disabled={field.isExisting}
+                  options={["string", "number", "float", "double", "boolean"]}
+                />
+              </div>
+
+              <div class="flex items-center gap-3 w-full md:w-auto h-12 flex-1 pt-1 md:pt-0">
+                <label class="flex items-center gap-2 h-full px-2 {field.isExisting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}">
+                  <input
+                    type="checkbox"
+                    bind:checked={field.required}
+                    disabled={field.isExisting}
+                    class="accent-[#0066cc] w-4 h-4 rounded border-slate-300 {field.isExisting ? 'cursor-not-allowed' : 'cursor-pointer'}"
+                  />
+                  <span class="text-xs font-semibold text-slate-700">Mandatory</span>
+                </label>
+              </div>
+
+              <div class="h-12 flex items-center shrink-0">
+                 {#if !field.isExisting}
+                   <button
+                     aria-label="Remove Field"
+                     onclick={() => { customFields = customFields.filter((_, i) => i !== index); }}
+                     class="h-10 w-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                   >
+                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                   </button>
+                 {/if}
+              </div>
+            </div>
+          {/each}
+
+          {#if customFields.length === 0}
+            <div class="py-10 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+              <span class="text-sm font-medium">No custom fields defined yet.</span>
+              <span class="text-xs mt-1">Add fields to enforce specific transaction payloads.</span>
+            </div>
+          {/if}
+
+          <div class="flex border-t border-slate-200 pt-6 mt-2 pb-2">
+            <button
+               onclick={() => { customFields = [...customFields, { key: "", type: "string", required: false }] }}
+               class="flex items-center gap-2 text-sm font-semibold text-[#0066cc] hover:text-[#0052a3] transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              Add New Field
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-8 flex flex-col items-start gap-4">
+          {#if errorMessage}
+            <div class="text-sm font-semibold text-rose-500 flex items-center gap-2 mb-2 bg-rose-50 px-4 py-2 rounded-lg border border-rose-100">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+               {errorMessage}
+            </div>
+          {/if}
+          <button
+            onclick={nextStep}
+            class="h-14 w-[220px] rounded-2xl bg-[#0066cc] text-[15px] font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] active:scale-[0.98] cursor-pointer"
+          >
+            Next Step
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 5: Add Payees -->
+    {:else if step === 5}
       <div
         class="w-full max-w-4xl rounded-[32px] bg-white p-12 shadow-xl relative mt-12"
       >
@@ -720,8 +819,8 @@
         </div>
       </div>
 
-      <!-- STEP 5: Success Modal -->
-    {:else if step === 5}
+      <!-- STEP 6: Success Modal -->
+    {:else if step === 6}
       <div
         class="w-full max-w-[420px] rounded-[24px] bg-white p-6 md:p-8 shadow-2xl relative mt-16 mx-auto border border-slate-100 ring-1 ring-slate-900/5"
       >

@@ -1,8 +1,15 @@
 <script lang="ts">
   import TopBar from "$lib/components/dashboard/TopBar.svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
-  import { RefreshCw, FileText } from "lucide-svelte";
+  import {
+    RefreshCw,
+    FileText,
+    Download,
+    Clock,
+    CheckCircle2
+  } from "lucide-svelte";
   import { authState } from "$lib/state/auth.svelte.js";
+  import { dbStore, requestReport, apiCall } from "$lib/state/db.svelte.js";
 
   let activeUser = $derived(
     authState.isAdminView ? authState.viewingAs : authState.user
@@ -11,18 +18,56 @@
   let entityTabName = $derived(
     activeUser?.role === "payee" ? "Payer" : "Payee"
   );
-  let activeTab = $state("Entity");
+  let activeTab = $state("Program");
   let timeFilter = $state("All Time");
-  let reportType = $state("Report Type");
+  let reportType = $state("All Status");
+  let customStartDate = $state("");
+  let customEndDate = $state("");
 
-  const mockPayers = [
-    { name: "Apollo Hospitals" },
-    { name: "Fortis Healthcare" },
-    { name: "Max Healthcare" },
-    { name: "Manipal Hospitals" },
-    { name: "Narayana Health" },
-    { name: "Medanta - The Medicity" }
-  ];
+  let allPayees = $state<any[]>([]);
+  let selectedTargetId = $state<string>("all");
+
+  $effect(() => {
+    if (!activeUser?.id) return;
+    if (activeUser.role === "payer") {
+      apiCall(`/payees?payerId=${activeUser.id}`)
+        .then((res) => {
+          allPayees = Array.isArray(res) ? res : res?.payees || [];
+        })
+        .catch(() => (allPayees = []));
+    }
+  });
+
+  let displayList = $derived(
+    activeTab === "Program" ? dbStore.programs : allPayees
+  );
+
+  let showHistory = $state(false);
+  let isRequesting = $state(false);
+
+  function handleGenerateReport() {
+    isRequesting = true;
+    
+    // Resolve the name of the selected target based on the current tab
+    const selectedItem = displayList.find(i => i.id === selectedTargetId);
+    const targetName = selectedItem ? (selectedItem.businessName || selectedItem.name) : "";
+
+    requestReport(
+      activeUser?.id,
+      activeTab === "Program" ? "program" : "payee",
+      selectedTargetId,
+      targetName,
+      timeFilter === "Custom Range" ? customStartDate : timeFilter,
+      timeFilter === "Custom Range" ? customEndDate : "",
+      reportType
+    );
+    showHistory = true;
+
+    // Reset loader visually
+    setTimeout(() => {
+      isRequesting = false;
+    }, 600);
+  }
 </script>
 
 <svelte:head>
@@ -74,15 +119,6 @@
           <div class="flex items-center gap-4">
             <div class="flex rounded-lg bg-slate-100 p-1">
               <button
-                onclick={() => (activeTab = "Entity")}
-                class="rounded-md px-8 py-2 text-sm font-semibold transition-all shadow-sm {activeTab ===
-                'Entity'
-                  ? 'bg-white text-[#0066cc] ring-1 ring-slate-200 cursor-default'
-                  : 'text-slate-500 hover:text-slate-700 cursor-pointer'}"
-              >
-                {entityTabName}
-              </button>
-              <button
                 onclick={() => (activeTab = "Program")}
                 class="rounded-md px-8 py-2 text-sm font-semibold transition-all {activeTab ===
                 'Program'
@@ -90,6 +126,15 @@
                   : 'text-slate-500 hover:text-slate-700 cursor-pointer'}"
               >
                 Program
+              </button>
+              <button
+                onclick={() => (activeTab = "Entity")}
+                class="rounded-md px-8 py-2 text-sm font-semibold transition-all {activeTab ===
+                'Entity'
+                  ? 'bg-white text-[#0066cc] shadow-sm ring-1 ring-slate-200 cursor-default'
+                  : 'text-slate-500 hover:text-slate-700 cursor-pointer'}"
+              >
+                {entityTabName}
               </button>
             </div>
 
@@ -101,20 +146,53 @@
                   "All Time",
                   "Last 30 Days",
                   "Last 3 Months",
-                  "This Year"
+                  "This Year",
+                  "Custom Range"
                 ]}
               />
+
+              {#if timeFilter === "Custom Range"}
+                <div
+                  class="absolute top-[calc(100%+8px)] left-0 z-50 flex flex-col gap-3 rounded-[16px] border border-slate-200 bg-white p-4 shadow-xl animate-in fade-in zoom-in-95 w-[280px]"
+                >
+                  <h4 class="text-xs font-semibold text-slate-800">
+                    Select Date Range
+                  </h4>
+                  <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1.5">
+                      <span class="text-[11px] font-medium text-slate-500"
+                        >From Date</span
+                      >
+                      <input
+                        type="date"
+                        bind:value={customStartDate}
+                        title="Start Date"
+                        aria-label="Start Date"
+                        class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc] cursor-pointer bg-slate-50 hover:bg-white transition-colors"
+                      />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                      <span class="text-[11px] font-medium text-slate-500"
+                        >To Date</span
+                      >
+                      <input
+                        type="date"
+                        bind:value={customEndDate}
+                        title="End Date"
+                        aria-label="End Date"
+                        class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc] cursor-pointer bg-slate-50 hover:bg-white transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              {/if}
             </div>
 
             <div class="w-[180px] relative">
               <CustomSelect
                 id="reportType"
                 bind:value={reportType}
-                options={[
-                  "Report Type",
-                  "Transaction Summary",
-                  "Payout Statement"
-                ]}
+                options={["All Status", "Redeemed", "Settled", "Pending"]}
               />
             </div>
           </div>
@@ -122,15 +200,32 @@
           <!-- Action Buttons -->
           <div class="flex items-center gap-3">
             <button
-              class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:bg-slate-50 cursor-pointer hover:-translate-y-0.5"
+              onclick={handleGenerateReport}
+              disabled={isRequesting}
+              class="flex h-11 items-center justify-center gap-2 rounded-xl border border-transparent bg-[#0066cc] px-5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#0052a3] cursor-pointer hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <RefreshCw class="h-4 w-4" />
+              {#if isRequesting}
+                <RefreshCw class="h-4 w-4 animate-spin" />
+                Generating...
+              {:else}
+                <Download class="h-4 w-4" />
+                Download Report
+              {/if}
             </button>
             <button
-              class="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 cursor-pointer hover:-translate-y-0.5"
+              onclick={() => (showHistory = true)}
+              class="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 cursor-pointer hover:-translate-y-0.5 relative"
             >
-              <FileText class="h-4 w-4" />
-              Report History
+              <Clock class="h-4 w-4" />
+              History
+              {#if dbStore.reportsHistory.filter((r) => r.status === "ready").length > 0}
+                <span
+                  class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-sm"
+                >
+                  {dbStore.reportsHistory.filter((r) => r.status === "ready")
+                    .length}
+                </span>
+              {/if}
             </button>
           </div>
         </div>
@@ -148,21 +243,49 @@
           </div>
 
           <div class="flex flex-col">
-            {#each mockPayers as payer, index}
+            <!-- "All" Selection Row -->
+            <div
+              class="grid grid-cols-4 items-center border-b border-slate-100 bg-white p-4 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
+              onclick={() => (selectedTargetId = "all")}
+              onkeydown={(e) => e.key === "Enter" && (selectedTargetId = "all")}
+              tabindex="0"
+              role="button"
+            >
+              <div class="col-span-3 text-sm font-semibold text-slate-800 mt-1">
+                All {activeTab === "Program" ? "Programs" : entityTabName + "s"}
+              </div>
+              <div class="col-span-1 flex justify-end px-2">
+                <input
+                  type="checkbox"
+                  checked={selectedTargetId === "all"}
+                  class="h-5 w-5 rounded border-slate-300 accent-[#0066cc] cursor-pointer"
+                  onchange={() => selectedTargetId = "all"}
+                  onclick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            {#each displayList as item}
               <div
-                class="grid grid-cols-4 items-center border-b border-slate-100 bg-white p-4 last:border-0 hover:bg-slate-50 transition-colors"
+                class="grid grid-cols-4 items-center border-b border-slate-100 bg-white p-4 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
+                onclick={() => (selectedTargetId = item.id)}
+                onkeydown={(e) => e.key === "Enter" && (selectedTargetId = item.id)}
+                tabindex="0"
+                role="button"
               >
                 <div
                   class="col-span-3 text-sm font-semibold text-[#003366] mt-1"
                 >
-                  {payer.name}
+                  {item.businessName || item.name}
                 </div>
-                <div class="col-span-1 flex justify-end">
-                  <button
-                    class="rounded-xl border border-slate-200 px-6 py-2 text-[13px] font-semibold text-slate-700 shadow-sm transition-all hover:border-green-500 hover:text-green-600 focus:bg-green-50 cursor-pointer"
-                  >
-                    Select
-                  </button>
+                <div class="col-span-1 flex justify-end px-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedTargetId === item.id}
+                    class="h-5 w-5 rounded border-slate-300 accent-[#0066cc] cursor-pointer"
+                    onchange={() => selectedTargetId = item.id}
+                    onclick={(e) => e.stopPropagation()}
+                  />
                 </div>
               </div>
             {/each}
@@ -172,3 +295,95 @@
     </div>
   </div>
 </div>
+
+<!-- Report History Modal/Slide-over -->
+{#if showHistory}
+  <div
+    class="fixed inset-0 z-[100] flex justify-end bg-slate-900/20 backdrop-blur-sm"
+  >
+    <div
+      class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right"
+    >
+      <div
+        class="flex items-center justify-between p-6 border-b border-slate-100"
+      >
+        <h2 class="text-xl font-bold text-slate-900">Report History</h2>
+        <button
+          onclick={() => (showHistory = false)}
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+        {#if dbStore.reportsHistory.length === 0}
+          <div
+            class="flex flex-col items-center justify-center h-40 text-center gap-3 opacity-60"
+          >
+            <FileText class="h-8 w-8 text-slate-400" />
+            <p class="text-sm font-medium text-slate-500">
+              No reports generated yet.
+            </p>
+          </div>
+        {:else}
+          {#each dbStore.reportsHistory as report}
+            <div
+              class="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 shadow-sm bg-white"
+            >
+              <div class="flex items-center justify-between">
+                <span
+                  class="text-xs font-semibold text-slate-500 uppercase tracking-wider"
+                >
+                  {report.id}
+                </span>
+                <span class="text-[11px] font-medium text-slate-400">
+                  {new Date(report.requestedAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
+                </span>
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <h4 class="text-sm font-bold text-slate-900">
+                  {report.programId}
+                </h4>
+                <p class="text-xs font-medium text-slate-600">
+                  Filters: {report.dateRange}
+                  {#if report.statusFilter && report.statusFilter !== "All Status"}
+                    • {report.statusFilter}
+                  {/if}
+                </p>
+              </div>
+
+              <div
+                class="mt-2 flex items-center justify-between border-t border-slate-100 pt-3"
+              >
+                {#if report.status === "loading"}
+                  <div class="flex items-center gap-2 text-[#0066cc]">
+                    <RefreshCw class="h-4 w-4 animate-spin" />
+                    <span class="text-xs font-semibold">Generating...</span>
+                  </div>
+                {:else if report.status === "ready"}
+                  <div class="flex items-center gap-2 text-emerald-600">
+                    <CheckCircle2 class="h-4 w-4" />
+                    <span class="text-xs font-semibold">Ready</span>
+                  </div>
+                  <a
+                    href={report.downloadUrl}
+                    download={`report_${report.id}.csv`}
+                    class="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-slate-800"
+                  >
+                    <Download class="h-3.5 w-3.5" />
+                    Download CSV
+                  </a>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
