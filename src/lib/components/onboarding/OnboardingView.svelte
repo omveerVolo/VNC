@@ -148,6 +148,12 @@
         errorMessage = "Please fill in all custom field names or remove empty fields.";
         return;
       }
+
+      const hasSpaces = customFields.some(f => f.key.trim().includes(" "));
+      if (hasSpaces) {
+        errorMessage = "Field name could not contain spaces.";
+        return;
+      }
     }
 
     if (step === 5 && !hasSubmitted) {
