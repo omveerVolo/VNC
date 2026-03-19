@@ -154,9 +154,10 @@
         : 'opacity-40 pointer-events-none'}"
     >
       {#each mainNav as item}
+        {@const isAdminDisabled = authState.user?.role?.toLowerCase() === 'admin' && (item.label === 'Programs' || item.label === 'Reports')}
         {@const Icon = item.icon}
         <li
-          class="relative flex w-full justify-center group"
+          class="relative flex w-full justify-center group {isAdminDisabled ? 'opacity-40 cursor-not-allowed' : ''}"
           onmouseenter={() => {
             if (item.path === "/payouts") hoverStates.payouts = true;
           }}
@@ -167,6 +168,10 @@
           <a
             href={item.path}
             onclick={(e) => {
+              if (isAdminDisabled) {
+                e.preventDefault();
+                return;
+              }
               if (item.path === "/payouts") {
                 e.preventDefault();
                 isPayoutsOpen = !isPayoutsOpen;
@@ -180,7 +185,7 @@
             (item.path === '/payouts' &&
               $page.url.pathname.startsWith('/payouts'))
               ? 'border-[#6e56cf] bg-[#2b2166] text-white shadow-sm'
-              : 'border-transparent text-slate-400 hover:border-[#6e56cf]/60 hover:bg-[#2b2166]/50 hover:text-white'}"
+              : 'border-transparent text-slate-400 hover:border-[#6e56cf]/60 hover:bg-[#2b2166]/50 hover:text-white'} {isAdminDisabled ? 'pointer-events-none' : ''}"
           >
             <span
               class="mb-1.5 flex items-center justify-center transition-transform duration-200 group-hover:scale-110"

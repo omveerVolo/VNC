@@ -412,7 +412,8 @@
               type="text"
               bind:value={programName}
               placeholder="Medical Program"
-              class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc]"
+              disabled={!!editProgramId}
+              class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#0066cc] focus:ring-1 focus:ring-[#0066cc] disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
             />
           </div>
           <div class="flex flex-col gap-2 relative">
@@ -424,6 +425,7 @@
             <CustomSelect
               id="businessType"
               bind:value={businessType}
+              disabled={!!editProgramId}
               options={[
                 "Healthcare",
                 "Insurance",
@@ -444,6 +446,7 @@
             <CustomSelect
               id="businessCategory"
               bind:value={businessCategory}
+              disabled={!!editProgramId}
               options={[
                 "Hospital",
                 "Clinic",
@@ -645,7 +648,8 @@
           <div class="flex border-t border-slate-200 pt-6 mt-2 pb-2">
             <button
                onclick={() => { customFields = [...customFields, { key: "", type: "string", required: false }] }}
-               class="flex items-center gap-2 text-sm font-semibold text-[#0066cc] hover:text-[#0052a3] transition-colors"
+               disabled={!!editProgramId}
+               class="flex items-center gap-2 text-sm font-semibold text-[#0066cc] hover:text-[#0052a3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-[#0066cc]"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               Add New Field

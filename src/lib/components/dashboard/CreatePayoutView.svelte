@@ -262,7 +262,7 @@
           email: r.email,
           payeeId: r.payeeId,
           businessName: r.businessName,
-          amount: r.amount.toString(),
+          amount: (r.amount !== undefined && r.amount !== null) ? r.amount.toString() : "0",
           currency: currency || "INR",
           extraFields: r.extraFields || {},
           validity: r.validity
@@ -350,7 +350,8 @@
           programId: pid,
           payeeId: pidRow,
           payeeLabel: row.businessName || row.email,
-          customTxId: row.txId
+          customTxId: row.txId,
+          extraFields: row.extraFields || {}
         };
       });
       createPayout(payloadArray);

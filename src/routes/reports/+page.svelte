@@ -38,8 +38,14 @@
     }
   });
 
+  let enrolledPayeeIds = $derived(
+    Array.from(new Set(dbStore.programs.flatMap((p: any) => p.enrolledPayees || [])))
+  );
+
   let displayList = $derived(
-    activeTab === "Program" ? dbStore.programs : allPayees
+    activeTab === "Program" 
+      ? dbStore.programs 
+      : allPayees.filter(payee => enrolledPayeeIds.includes(payee.id))
   );
 
   let showHistory = $state(false);
