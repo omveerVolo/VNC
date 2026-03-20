@@ -25,7 +25,24 @@
   let customEndDate = $state("");
 
   let allPayees = $state<any[]>([]);
-  let selectedTargetId = $state<string>("all");
+  let selectedTargetIds = $state<string[]>(["all"]);
+
+  function toggleSelection(id: string) {
+    if (id === "all") {
+      selectedTargetIds = ["all"];
+      return;
+    }
+    
+    let current = selectedTargetIds.filter(x => x !== "all");
+    if (current.includes(id)) {
+      current = current.filter(x => x !== id);
+    } else {
+      current.push(id);
+    }
+    
+    if (current.length === 0) current = ["all"];
+    selectedTargetIds = current;
+  }
 
   $effect(() => {
     if (!activeUser?.id) return;
@@ -54,14 +71,26 @@
   function handleGenerateReport() {
     isRequesting = true;
     
-    // Resolve the name of the selected target based on the current tab
-    const selectedItem = displayList.find(i => i.id === selectedTargetId);
-    const targetName = selectedItem ? (selectedItem.businessName || selectedItem.name) : "";
+    let actualIds: string[] = [];
+    let targetName = "";
+
+    if (selectedTargetIds.includes("all")) {
+      actualIds = displayList.map(i => i.id);
+      targetName = activeTab === "Program" ? "All Programs" : `All ${entityTabName}s`;
+    } else {
+      actualIds = selectedTargetIds;
+      if (selectedTargetIds.length === 1) {
+        const selectedItem = displayList.find(i => i.id === selectedTargetIds[0]);
+        targetName = selectedItem ? (selectedItem.businessName || selectedItem.name) : "";
+      } else {
+        targetName = `${selectedTargetIds.length} Selected`;
+      }
+    }
 
     requestReport(
       activeUser?.id,
       activeTab === "Program" ? "program" : "payee",
-      selectedTargetId,
+      actualIds,
       targetName,
       timeFilter === "Custom Range" ? customStartDate : timeFilter,
       timeFilter === "Custom Range" ? customEndDate : "",
@@ -125,7 +154,7 @@
           <div class="flex items-center gap-4">
             <div class="flex rounded-lg bg-slate-100 p-1">
               <button
-                onclick={() => (activeTab = "Program")}
+                onclick={() => { activeTab = "Program"; selectedTargetIds = ["all"]; }}
                 class="rounded-md px-8 py-2 text-sm font-semibold transition-all {activeTab ===
                 'Program'
                   ? 'bg-white text-[#0066cc] shadow-sm ring-1 ring-slate-200 cursor-default'
@@ -134,7 +163,7 @@
                 Program
               </button>
               <button
-                onclick={() => (activeTab = "Entity")}
+                onclick={() => { activeTab = "Entity"; selectedTargetIds = ["all"]; }}
                 class="rounded-md px-8 py-2 text-sm font-semibold transition-all {activeTab ===
                 'Entity'
                   ? 'bg-white text-[#0066cc] shadow-sm ring-1 ring-slate-200 cursor-default'
@@ -252,8 +281,8 @@
             <!-- "All" Selection Row -->
             <div
               class="grid grid-cols-4 items-center border-b border-slate-100 bg-white p-4 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
-              onclick={() => (selectedTargetId = "all")}
-              onkeydown={(e) => e.key === "Enter" && (selectedTargetId = "all")}
+              onclick={() => toggleSelection("all")}
+              onkeydown={(e) => e.key === "Enter" && toggleSelection("all")}
               tabindex="0"
               role="button"
             >
@@ -263,9 +292,9 @@
               <div class="col-span-1 flex justify-end px-2">
                 <input
                   type="checkbox"
-                  checked={selectedTargetId === "all"}
+                  checked={selectedTargetIds.includes("all")}
                   class="h-5 w-5 rounded border-slate-300 accent-[#0066cc] cursor-pointer"
-                  onchange={() => selectedTargetId = "all"}
+                  onchange={() => toggleSelection("all")}
                   onclick={(e) => e.stopPropagation()}
                 />
               </div>
@@ -274,8 +303,8 @@
             {#each displayList as item}
               <div
                 class="grid grid-cols-4 items-center border-b border-slate-100 bg-white p-4 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
-                onclick={() => (selectedTargetId = item.id)}
-                onkeydown={(e) => e.key === "Enter" && (selectedTargetId = item.id)}
+                onclick={() => toggleSelection(item.id)}
+                onkeydown={(e) => e.key === "Enter" && toggleSelection(item.id)}
                 tabindex="0"
                 role="button"
               >
@@ -287,9 +316,9 @@
                 <div class="col-span-1 flex justify-end px-2">
                   <input
                     type="checkbox"
-                    checked={selectedTargetId === item.id}
+                    checked={selectedTargetIds.includes(item.id)}
                     class="h-5 w-5 rounded border-slate-300 accent-[#0066cc] cursor-pointer"
-                    onchange={() => selectedTargetId = item.id}
+                    onchange={() => toggleSelection(item.id)}
                     onclick={(e) => e.stopPropagation()}
                   />
                 </div>

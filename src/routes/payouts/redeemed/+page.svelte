@@ -54,13 +54,20 @@
             p.payerName ||
             "Unknown Payer";
 
+        const cleanAmt = String(p.amount || "0").replace(/[₹,\s]/g, "");
+        const baseAmt = parseFloat(cleanAmt) || 0;
+        const tdsNum = parseFloat(p.tds) || 0;
+        const finalPayable = baseAmt - (baseAmt * tdsNum) / 100;
+        const formattedPayable = finalPayable.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
         return {
           id: p.claimNo,
+          trackingId: p.trackingId || "-",
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : p.providerName,
           approvedAmount: `₹${p.amount}`,
-          gst: "None",
-          payableAmount: `₹${p.amount}`,
+          tds: p.tds ? `${p.tds}%` : "0%",
+          payableAmount: `₹${formattedPayable}`,
           status: p.status
         };
       })
@@ -121,15 +128,16 @@
       <div class="min-w-[1000px] flex flex-col">
         <!-- Grid Header -->
         <div
-          class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr] gap-4 rounded-xl bg-[#e6dbf3] px-6 py-4 text-[13px] text-[#5b4897] font-semibold"
+          class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr] gap-4 rounded-xl bg-[#e6dbf3] px-6 py-4 text-[13px] text-[#5b4897] font-semibold"
         >
           <div class="col-span-1 whitespace-nowrap">Program</div>
           <div class="col-span-1 whitespace-nowrap">Payer</div>
-          <div class="col-span-1 whitespace-nowrap">Transaction ID</div>
+          <div class="col-span-1 whitespace-nowrap">Tx id</div>
+          <div class="col-span-1 whitespace-nowrap">Tracking id</div>
           <div class="col-span-1 text-center whitespace-nowrap">
             Approved Amount
           </div>
-          <div class="col-span-1 text-center whitespace-nowrap">GST</div>
+          <div class="col-span-1 text-center whitespace-nowrap">TDS</div>
           <div class="col-span-1 text-center whitespace-nowrap">
             Payable Amount
           </div>
@@ -140,7 +148,7 @@
         <div class="mt-3 flex flex-col gap-3">
           {#each paginatedPayouts as payout}
             <div
-              class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr] items-center gap-4 rounded-xl border border-transparent bg-slate-50 px-6 py-4 transition-all hover:-translate-y-0.5 hover:shadow-sm cursor-default"
+              class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr] items-center gap-4 rounded-xl border border-transparent bg-slate-50 px-6 py-4 transition-all hover:-translate-y-0.5 hover:shadow-sm cursor-default"
             >
               <div
                 class="col-span-1 text-[13px] font-semibold text-slate-600 truncate"
@@ -161,6 +169,12 @@
               </div>
 
               <div
+                class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
+              >
+                {payout.trackingId}
+              </div>
+
+              <div
                 class="col-span-1 text-center font-semibold text-slate-900 text-[13px] whitespace-nowrap"
               >
                 {payout.approvedAmount}
@@ -169,7 +183,7 @@
               <div
                 class="col-span-1 text-center text-[13px] text-slate-600 whitespace-nowrap"
               >
-                {payout.gst}
+                {payout.tds}
               </div>
 
               <div

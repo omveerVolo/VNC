@@ -462,7 +462,13 @@
 
             <div class="p-5 flex flex-col gap-4">
               <div class="flex justify-between items-center text-[12px]">
-                <span class="font-medium text-slate-500">Transaction ID</span>
+                <span class="font-medium text-slate-500">Tracking id</span>
+                <span class="font-semibold text-slate-800 font-mono"
+                  >{payout.trackingId}</span
+                >
+              </div>
+              <div class="flex justify-between items-center text-[12px]">
+                <span class="font-medium text-slate-500">Tx id</span>
                 <span class="font-semibold text-slate-800 font-mono"
                   >{payout.id}</span
                 >
@@ -474,8 +480,8 @@
                 >
               </div>
               <div class="flex justify-between items-center text-[12px]">
-                <span class="font-medium text-slate-500">Applicable GST</span>
-                <span class="font-semibold text-slate-800 mt-0"> ₹0.00</span>
+                <span class="font-medium text-slate-500">Applicable TDS</span>
+                <span class="font-semibold text-slate-800 mt-0"> {payout.tds || "0%"}</span>
               </div>
               <!-- Dotted divider -->
               <div

@@ -262,10 +262,14 @@
           email: r.email,
           payeeId: r.payeeId,
           businessName: r.businessName,
-          amount: (r.amount !== undefined && r.amount !== null) ? r.amount.toString() : "0",
+          amount:
+            r.amount !== undefined && r.amount !== null
+              ? r.amount.toString()
+              : "0",
           currency: currency || "INR",
           extraFields: r.extraFields || {},
-          validity: r.validity
+          validity: r.validity || "1 Month",
+          tds: r.tds || 0
         }));
       } else {
         console.error("Invalid CSV format from server");
@@ -351,7 +355,8 @@
           payeeId: pidRow,
           payeeLabel: row.businessName || row.email,
           customTxId: row.txId,
-          extraFields: row.extraFields || {}
+          extraFields: row.extraFields || {},
+          tds: row.tds || 0
         };
       });
       createPayout(payloadArray);
@@ -362,7 +367,8 @@
         payeeId: selectedPayeeId,
         payeeLabel: selectedPayee,
         customTxId: txId,
-        extraFields: dynamicFieldValues
+        extraFields: dynamicFieldValues,
+        tds: tdsPercentage ? parseFloat(tdsPercentage) : 0
       });
     }
 
@@ -690,8 +696,7 @@
                   <label
                     for="payableAmount"
                     class="text-xs font-medium text-slate-600 flex items-center"
-                    >Payable Amount<span class="text-red-500 ml-1">*</span
-                    ></label
+                    >Amount<span class="text-red-500 ml-1">*</span></label
                   >
                   <input
                     id="payableAmount"
@@ -1190,6 +1195,7 @@
                                 <th class="p-4 border-r border-slate-100"
                                   >Extra Info</th
                                 >
+                                <th class="p-4 border-r border-slate-100">TDS</th>
                                 <th class="p-4">Validity</th>
                               </tr>
                             </thead>
@@ -1246,6 +1252,9 @@
                                       >
                                     {/if}
                                   </td>
+                                  <td class="p-4 font-medium text-slate-600 border-r border-slate-100"
+                                    >{row.tds ? `${row.tds}%` : '-'}</td
+                                  >
                                   <td class="p-4 font-medium text-slate-600"
                                     >{row.validity}</td
                                   >
@@ -1394,6 +1403,9 @@
                       <span class="font-medium text-slate-500"
                         >Validity: {row.validity}</span
                       >
+                      {#if row.tds > 0}
+                        <span class="font-medium text-slate-500">TDS: {row.tds}%</span>
+                      {/if}
                     </div>
                   </div>
                 {/each}
@@ -1415,13 +1427,31 @@
               >
             </div>
 
+            {#if tdsPercentage && !isNaN(parseFloat(tdsPercentage)) && parseFloat(tdsPercentage) > 0}
+              <div class="flex flex-col gap-1 text-[13px] -mt-1">
+                <span class="font-semibold text-slate-800">Applicable TDS</span>
+                <span class="font-medium text-slate-500">{tdsPercentage}%</span>
+              </div>
+            {/if}
+
             <div class="flex flex-col gap-1 mt-2">
               <span class="text-xs font-semibold text-slate-500"
-                >Total Amount</span
+                >Total Amount{tdsPercentage &&
+                !isNaN(parseFloat(tdsPercentage)) &&
+                parseFloat(tdsPercentage) > 0
+                  ? " (After TDS)"
+                  : ""}</span
               >
               <span class="text-3xl font-semibold text-slate-900">
                 {currency === "INR" ? "₹" : currency}
-                {amount}
+                {#if tdsPercentage && !isNaN(parseFloat(tdsPercentage)) && parseFloat(tdsPercentage) > 0}
+                  {(
+                    parseFloat(amount.toString().replace(/,/g, "")) *
+                    (1 - parseFloat(tdsPercentage) / 100)
+                  ).toLocaleString()}
+                {:else}
+                  {amount}
+                {/if}
               </span>
             </div>
 
@@ -1521,6 +1551,13 @@
                           >{row.validity}</span
                         ></span
                       >
+                      {#if row.tds > 0}
+                        <span class="text-[10px] font-medium text-slate-400 mt-0.5"
+                          >TDS: <span class="text-slate-600 font-semibold"
+                            >{row.tds}%</span
+                          ></span
+                        >
+                      {/if}
                     </div>
                     <span class="text-md font-bold text-[#7d326f]"
                       >{row.currency === "INR" ? "₹" : row.currency}
@@ -1539,7 +1576,12 @@
                 <p class="text-[13px] font-semibold text-slate-900 mt-1">
                   {computedDateRangeText}
                 </p>
-                <span class="text-[9px] font-medium text-slate-400"
+                {#if tdsPercentage && !isNaN(parseFloat(tdsPercentage)) && parseFloat(tdsPercentage) > 0}
+                  <span class="text-[11px] font-medium text-slate-500 mt-0.5">
+                    TDS Deduction: {tdsPercentage}%
+                  </span>
+                {/if}
+                <span class="text-[9px] font-medium text-slate-400 mt-1 bg-[#7d326f]/5 px-2 py-0.5 rounded"
                   >Transaction ID: <span class="text-slate-600 font-semibold"
                     >{txId ? txId : "-"}</span
                   ></span

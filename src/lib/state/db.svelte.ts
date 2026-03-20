@@ -139,7 +139,7 @@ export function createPayout(payload: any | any[]) {
   const newNotifications: any[] = [];
 
   items.forEach((item) => {
-    const { amount, programId, payeeId, payeeLabel, customTxId, extraFields } = item;
+    const { amount, programId, payeeId, payeeLabel, customTxId, extraFields, tds } = item;
 
     // Remove currency symbol and commas before parsing
     const cleanAmount = String(amount).replace(/[₹,]/g, "");
@@ -180,10 +180,13 @@ export function createPayout(payload: any | any[]) {
       patientName: "Newly Assigned",
       claimNo:
         customTxId?.trim() || `VADE${Math.floor(Math.random() * 1000000)}`,
+      transactionId: `VADE${Math.floor(Math.random() * 1000000)}`,
+      trackingId: customTxId?.trim() || "",
       payoutId: `ACME${Math.floor(Math.random() * 100000000)}`,
       amount: cleanAmount,
       status: initialStatus,
       extraFields: extraFields || {},
+      tds: tds || 0,
     };
 
     newPayouts.push(newPayout);
@@ -483,7 +486,7 @@ function formatCurrency(rawAmount: any) {
 export async function requestReport(
   payerId: string | undefined,
   targetType: "program" | "payee",
-  targetId: string,
+  targetIds: string[],
   targetName: string,
   startDate: string,
   endDate: string,
@@ -491,7 +494,7 @@ export async function requestReport(
 ) {
   const reportId = `rep_${Math.random().toString(36).substring(2, 9)}`;
 
-  const parsedTargetName = targetId === "all" || !targetName 
+  const parsedTargetName = !targetName 
     ? (targetType === "program" ? "All Programs" : "All Payees") 
     : targetName;
 
@@ -512,11 +515,11 @@ export async function requestReport(
     const params = new URLSearchParams();
     if (payerId) params.append("payerId", payerId);
     
-    if (targetId && targetId !== "all") {
+    if (targetIds && targetIds.length > 0) {
        if (targetType === "program") {
-         params.append("programId", targetId);
+         targetIds.forEach(id => params.append("programIds", id));
        } else {
-         params.append("payeeId", targetId);
+         targetIds.forEach(id => params.append("payeeIds", id));
        }
     }
     
