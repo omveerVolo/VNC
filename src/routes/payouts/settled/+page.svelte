@@ -58,6 +58,7 @@
           approvedAmount: `₹${p.amount}`,
           tds: p.tds ? `${p.tds}%` : "0%",
           payableAmount: `₹${formattedPayable}`,
+          transactionId: p.transactionId || "-",
           status: p.status,
           utr: `HDFCR${Math.abs(hashString(p.claimNo)).toString().padStart(9, "0")}`
         };
@@ -138,7 +139,7 @@
 
         <!-- Grid Rows -->
         <div class="mt-3 flex flex-col gap-3">
-          {#each payouts as payout}
+          {#each [...payouts].reverse() as payout}
             <div
               class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr_1.5fr] items-center gap-4 rounded-xl border border-transparent bg-slate-50 px-6 py-4 transition-all hover:-translate-y-0.5 hover:shadow-sm cursor-default"
             >
@@ -157,13 +158,13 @@
               <div
                 class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
-                {payout.id}
+                {payout.transactionId || "-"}
               </div>
 
               <div
                 class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
-                {payout.trackingId}
+                {payout.trackingId || "-"}
               </div>
 
               <div

@@ -4,13 +4,26 @@
     UserPlus,
     Trash2,
     PlusCircle,
-    CheckCircle
+    CheckCircle,
+    ArrowLeft
   } from "lucide-svelte";
   import CustomSelect from "$lib/components/ui/CustomSelect.svelte";
   import { createEventDispatcher } from "svelte";
-  import { dbStore } from "$lib/state/db.svelte.js";
+  import { dbStore, createWorkflow, deleteWorkflow } from "$lib/state/db.svelte.js";
+  import { authState } from "$lib/state/auth.svelte.js";
 
   const dispatch = createEventDispatcher();
+
+  // View States
+  let manuallyViewingCreate = $state(false);
+  let displayedWorkflows = $derived(
+    dbStore.workflows.filter((w: any) => {
+      if (authState.user?.role === "payer") return w.payerId === authState.user.id;
+      if (authState.user?.role === "payee") return w.payeeId === authState.user.id;
+      return true;
+    })
+  );
+  let showCreateForm = $derived(displayedWorkflows.length === 0 || manuallyViewingCreate);
 
   // Accordion & View State
   let isApprovalAlwaysExpanded = $state(false);
@@ -30,12 +43,38 @@
   let redeemRole = $state("Ops");
 
   function handleSave() {
+    let matchedProgramId = "all";
+    if (selectedProgram !== "All Programs") {
+      const prog = dbStore.programs.find((p: any) => p.name === selectedProgram);
+      if (prog) matchedProgramId = prog.id;
+    }
+
+    const payload = {
+      role: firstApprovalBy,
+      amount: parseInt(conditionValue || "0", 10),
+      workflowId: `wf_${Math.floor(Math.random() * 100000)}`,
+      programId: matchedProgramId,
+      compareKey: conditionOperator,
+      payerId: authState.user?.role === "payer" ? authState.user?.id : null,
+      payeeId: authState.user?.role === "payee" ? authState.user?.id : null,
+    };
+
+    createWorkflow(payload);
     isSuccess = true;
+    setTimeout(() => {
+      isSuccess = false;
+      manuallyViewingCreate = false;
+    }, 1500);
+  }
+
+  function handleDelete(wf: any) {
+    const id = wf.id || wf.workflowId;
+    if (id) deleteWorkflow(id);
   }
 </script>
 
 <div
-  class="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full transition-all"
+  class="flex items-center justify-center min-h-[calc(100vh-8rem)] w-full transition-all p-6"
 >
   {#if isSuccess}
     <!-- SUCCESS SCREEN -->
@@ -56,15 +95,23 @@
         Approval workflow<br />configured successfully.
       </h2>
     </div>
-  {:else}
+  {:else if showCreateForm}
     <!-- SETUP SCREEN -->
     <div
-      class="relative w-full max-w-[750px] rounded-[32px] bg-white p-10 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-200 min-h-[500px] flex flex-col"
+      class="relative w-full max-w-[750px] rounded-[32px] bg-white p-10 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-200 min-h-[500px] flex flex-col animate-in fade-in"
     >
       <!-- Header -->
-      <div class="mb-8 w-full">
+      <div class="mb-8 w-full relative">
+        {#if displayedWorkflows.length > 0}
+          <button
+            onclick={() => (manuallyViewingCreate = false)}
+            class="absolute -top-6 -left-2 flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          >
+            <ArrowLeft class="h-3.5 w-3.5" /> Back to List
+          </button>
+        {/if}
         <h2
-          class="text-[24px] font-bold tracking-tight text-slate-900 leading-none"
+          class="text-[24px] font-bold tracking-tight text-slate-900 leading-none mt-2"
         >
           New Workflow Rule
         </h2>
@@ -171,11 +218,6 @@
                           >If</span
                         >
                         <div class="flex flex-1 gap-6 items-center w-full">
-                          <!-- <div
-                            class="text-[15px] font-bold text-[#1f2937] whitespace-nowrap min-w-[140px]"
-                          >
-                            Amount more than
-                          </div> -->
                           <div class="flex-1 h-[46px] relative z-[45]">
                             <CustomSelect
                               id="amountCondition"
@@ -240,7 +282,7 @@
                             <label
                               for="redeemRole"
                               class="text-[13px] font-semibold text-[#64748b]"
-                              >Entity</label
+                              >Role</label
                             >
                             <div class="h-[46px]">
                               <CustomSelect
@@ -286,9 +328,58 @@
           onclick={handleSave}
           class="h-11 w-[120px] rounded-[10px] bg-[#5b4897] text-[14px] font-medium text-white shadow-sm transition-all hover:bg-[#4a3a7c] cursor-pointer"
         >
-          Next
+          Save
         </button>
       </div>
     </div>
+  {:else}
+     <!-- LIST VIEW SCREEN -->
+     <div class="relative w-full max-w-[800px] rounded-[32px] bg-white p-8 md:p-12 shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-200 min-h-[500px] flex flex-col animate-in fade-in zoom-in-[0.98]">
+       <div class="mb-8 w-full flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+         <div>
+           <h2 class="text-[24px] font-bold tracking-tight text-slate-900 leading-none">Your Workflows</h2>
+           <p class="mt-2.5 text-[13px] font-semibold text-slate-400">Manage your approval workflow rules</p>
+         </div>
+         <button
+           onclick={() => manuallyViewingCreate = true}
+           class="flex items-center gap-2 rounded-xl bg-[#0066cc] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0052a3] hover:-translate-y-0.5 cursor-pointer"
+         >
+           <PlusCircle class="h-4.5 w-4.5" /> Create Workflow
+         </button>
+       </div>
+       
+       <div class="flex flex-col gap-4 overflow-y-auto w-full">
+          {#each displayedWorkflows as wf}
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:shadow-md hover:border-slate-300 group">
+               <div class="flex items-start gap-4">
+                 <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600 border border-slate-100 group-hover:bg-[#0066cc]/5 group-hover:text-[#0066cc] transition-colors">
+                   <Users class="h-6 w-6" strokeWidth={2} />
+                 </div>
+                 <div class="flex flex-col gap-1.5 text-left">
+                   <h3 class="text-[15px] font-bold text-slate-900 leading-tight">
+                     If Amount {wf.compareKey} {Number(wf.amount).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
+                   </h3>
+                   <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium text-slate-500">
+                     <span class="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                       <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                       {Number(wf.amount) === 0 ? "Global Limit" : (wf.programId === 'all' ? 'All Programs' : (dbStore.programs.find(p => p.id === wf.programId)?.name || wf.programId))}
+                     </span>
+                     <span class="text-slate-300">•</span>
+                     <span>Approve by {wf.role}</span>
+                   </div>
+                 </div>
+               </div>
+               
+               <button
+                 onclick={() => handleDelete(wf)}
+                 class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-400 border border-slate-100 transition-colors hover:bg-rose-50 hover:text-rose-500 hover:border-rose-200 cursor-pointer"
+                 title="Delete this workflow"
+               >
+                 <Trash2 class="h-5 w-5" />
+               </button>
+            </div>
+          {/each}
+       </div>
+     </div>
   {/if}
 </div>

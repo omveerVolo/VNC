@@ -52,6 +52,7 @@ export const dbStore = $state({
   programs: [],
   notifications: [],
   payouts: [],
+  workflows: [],
   reportsHistory: [] as any[], // New Reports Tracker
   isLoading: false,
 });
@@ -69,16 +70,27 @@ export async function syncRemoteData(userId: string) {
         : role === "payee"
           ? `payeeId=${userId}`
           : `userId=${userId}`;
-    const [progRes, poyRes, notifRes] = await Promise.all([
+    const [progRes, poyRes, notifRes, wfRes] = await Promise.all([
       apiCall(`/programs?userId=${userId}`),
       apiCall(`/payouts?${payoutsQuery}`),
       apiCall(`/notifications?userId=${userId}`),
+      apiCall(`/workflow`),
     ]);
 
-    // Only overwrite if API returns actual array arrays, else fallback to mock/empty
-    if (progRes && Array.isArray(progRes)) dbStore.programs = progRes;
-    if (poyRes && Array.isArray(poyRes)) dbStore.payouts = poyRes;
-    if (notifRes && Array.isArray(notifRes)) dbStore.notifications = notifRes;
+    const rawProg = progRes?.programs || progRes?.data || progRes;
+    if (rawProg && Array.isArray(rawProg)) dbStore.programs = rawProg;
+    
+    const rawPoy = poyRes?.payouts || poyRes?.data || poyRes;
+    if (rawPoy && Array.isArray(rawPoy)) dbStore.payouts = rawPoy;
+    
+    const rawNotif = notifRes?.notifications || notifRes?.data || notifRes;
+    if (rawNotif && Array.isArray(rawNotif)) dbStore.notifications = rawNotif;
+    
+    const rawWf = wfRes?.workflows || wfRes?.workflow || wfRes?.data || wfRes;
+    if (rawWf && Array.isArray(rawWf)) {
+      // @ts-ignore
+      dbStore.workflows = rawWf;
+    }
   } catch (err) {
     console.error("Failed to sync remote data", err);
   } finally {
@@ -145,9 +157,6 @@ export function createPayout(payload: any | any[]) {
     const cleanAmount = String(amount).replace(/[₹,]/g, "");
     const amountNumber = parseInt(cleanAmount, 10);
 
-    // Apply threshold logic: payouts > 51k require approval
-    const initialStatus = amountNumber > 51000 ? "Pending" : "Ready to redeem";
-
     let targetId = payeeId;
     const payeeRef = payeeLabel || payeeId || "";
     const cleanPayee = String(payeeRef).trim().toLowerCase();
@@ -162,6 +171,28 @@ export function createPayout(payload: any | any[]) {
       targetId = targetUser
         ? targetUser.id
         : `usr_pending_${cleanPayee.replace(/[^a-z0-9]/g, "")}`;
+    }
+
+    // Evaluate workflows to determine initial status dynamically
+    let initialStatus = "Ready to redeem";
+    
+    // @ts-ignore
+    const matchingWorkflow = dbStore.workflows?.find((wf: any) => {
+      // Evaluate strictly against the targeted payee's workflow
+      if (wf.payeeId !== targetId) return false;
+      
+      if (wf.programId && wf.programId !== "all" && wf.programId !== programId) return false;
+
+      const wfAmount = Number(wf.amount) || 0;
+      if (wf.compareKey === "More than" && amountNumber > wfAmount) return true;
+      if (wf.compareKey === "Less than" && amountNumber < wfAmount) return true;
+      if (wf.compareKey === "Equals" && amountNumber === wfAmount) return true;
+      
+      return false;
+    });
+
+    if (matchingWorkflow) {
+      initialStatus = "Pending";
     }
 
     const newPayout = {
@@ -218,6 +249,24 @@ export function createPayout(payload: any | any[]) {
   dbStore.notifications = [...newNotifications, ...dbStore.notifications];
 
   saveDb();
+}
+
+export async function createWorkflow(payload: any) {
+  const res = await apiCall("/workflow", "POST", payload);
+  if (res) {
+    // @ts-ignore
+    dbStore.workflows = [...dbStore.workflows, payload];
+  }
+}
+
+export async function deleteWorkflow(id: string) {
+  const res = await apiCall(`/workflow/${id}`, "DELETE");
+  if (res) {
+    // @ts-ignore
+    dbStore.workflows = dbStore.workflows.filter(
+      (w: any) => w.id !== id && w.workflowId !== id
+    );
+  }
 }
 
 export function createProgram(
@@ -511,15 +560,27 @@ export async function requestReport(
   dbStore.reportsHistory = [newReport, ...dbStore.reportsHistory];
 
   try {
-    const endpoint = targetType === "program" ? "/reports/programs" : "/reports/payees";
+    const role = authState.isAdminView ? authState.viewingAs?.role : authState.user?.role;
+    const endpoint = role === "payee" ? "/reports/payees" : "/reports/programs";
     const params = new URLSearchParams();
-    if (payerId) params.append("payerId", payerId);
+    
+    if (payerId) {
+      if (role === "payee") {
+        params.append("payeeId", payerId);
+      } else {
+        params.append("payerId", payerId);
+      }
+    }
     
     if (targetIds && targetIds.length > 0) {
        if (targetType === "program") {
          targetIds.forEach(id => params.append("programIds", id));
        } else {
-         targetIds.forEach(id => params.append("payeeIds", id));
+         if (role === "payee") {
+           targetIds.forEach(id => params.append("payerIds", id));
+         } else {
+           targetIds.forEach(id => params.append("payeeIds", id));
+         }
        }
     }
     

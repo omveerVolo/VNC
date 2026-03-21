@@ -32,14 +32,14 @@
       selectedTargetIds = ["all"];
       return;
     }
-    
-    let current = selectedTargetIds.filter(x => x !== "all");
+
+    let current = selectedTargetIds.filter((x) => x !== "all");
     if (current.includes(id)) {
-      current = current.filter(x => x !== id);
+      current = current.filter((x) => x !== id);
     } else {
       current.push(id);
     }
-    
+
     if (current.length === 0) current = ["all"];
     selectedTargetIds = current;
   }
@@ -56,32 +56,49 @@
   });
 
   let enrolledPayeeIds = $derived(
-    Array.from(new Set(dbStore.programs.flatMap((p: any) => p.enrolledPayees || [])))
+    Array.from(
+      new Set(dbStore.programs.flatMap((p: any) => p.enrolledPayees || []))
+    )
   );
 
-  let displayList = $derived(
-    activeTab === "Program" 
-      ? dbStore.programs 
-      : allPayees.filter(payee => enrolledPayeeIds.includes(payee.id))
-  );
+  let displayList = $derived.by(() => {
+    if (activeTab === "Program") {
+      return dbStore.programs;
+    }
+    if (activeUser?.role === "payee") {
+      const payers = new Map();
+      dbStore.programs.forEach((p: any) => {
+        if (!payers.has(p.payerId)) {
+          payers.set(p.payerId, { id: p.payerId, name: p.createdBy || p.payerName || "Unknown Payer" });
+        }
+      });
+      return Array.from(payers.values());
+    }
+    return allPayees.filter((payee) => enrolledPayeeIds.includes(payee.id));
+  });
 
   let showHistory = $state(false);
   let isRequesting = $state(false);
 
   function handleGenerateReport() {
     isRequesting = true;
-    
+
     let actualIds: string[] = [];
     let targetName = "";
 
     if (selectedTargetIds.includes("all")) {
-      actualIds = displayList.map(i => i.id);
-      targetName = activeTab === "Program" ? "All Programs" : `All ${entityTabName}s`;
+      actualIds = displayList.map((i) => i.id);
+      targetName =
+        activeTab === "Program" ? "All Programs" : `All ${entityTabName}s`;
     } else {
       actualIds = selectedTargetIds;
       if (selectedTargetIds.length === 1) {
-        const selectedItem = displayList.find(i => i.id === selectedTargetIds[0]);
-        targetName = selectedItem ? (selectedItem.businessName || selectedItem.name) : "";
+        const selectedItem = displayList.find(
+          (i) => i.id === selectedTargetIds[0]
+        );
+        targetName = selectedItem
+          ? selectedItem.businessName || selectedItem.name
+          : "";
       } else {
         targetName = `${selectedTargetIds.length} Selected`;
       }
@@ -154,7 +171,10 @@
           <div class="flex items-center gap-4">
             <div class="flex rounded-lg bg-slate-100 p-1">
               <button
-                onclick={() => { activeTab = "Program"; selectedTargetIds = ["all"]; }}
+                onclick={() => {
+                  activeTab = "Program";
+                  selectedTargetIds = ["all"];
+                }}
                 class="rounded-md px-8 py-2 text-sm font-semibold transition-all {activeTab ===
                 'Program'
                   ? 'bg-white text-[#0066cc] shadow-sm ring-1 ring-slate-200 cursor-default'
@@ -163,7 +183,10 @@
                 Program
               </button>
               <button
-                onclick={() => { activeTab = "Entity"; selectedTargetIds = ["all"]; }}
+                onclick={() => {
+                  activeTab = "Entity";
+                  selectedTargetIds = ["all"];
+                }}
                 class="rounded-md px-8 py-2 text-sm font-semibold transition-all {activeTab ===
                 'Entity'
                   ? 'bg-white text-[#0066cc] shadow-sm ring-1 ring-slate-200 cursor-default'

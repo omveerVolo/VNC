@@ -94,7 +94,9 @@
         const baseAmt = parseFloat(cleanAmt) || 0;
         const tdsNum = parseFloat(p.tds) || 0;
         const finalPayable = baseAmt - (baseAmt * tdsNum) / 100;
-        const formattedPayable = finalPayable.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        const formattedPayable = finalPayable.toLocaleString("en-IN", {
+          maximumFractionDigits: 2
+        });
 
         return {
           dbId: p.id,
@@ -107,6 +109,7 @@
           approvedAmount: `₹${p.amount}`,
           tds: p.tds ? `${p.tds}%` : "0%",
           payableAmount: `₹${formattedPayable}`,
+          transactionId: p.transactionId || "-",
           trackingId: p.trackingId || "-",
           status: p.status
         };
@@ -114,10 +117,9 @@
   );
 
   let paginatedPayouts = $derived(
-    filteredPayouts.slice(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
-    )
+    filteredPayouts
+      .reverse()
+      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
   );
 
   let totalPages = $derived(
@@ -237,13 +239,13 @@
               <div
                 class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
-                {payout.id}
+                {payout.transactionId || "-"}
               </div>
 
               <div
                 class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
-                {payout.trackingId}
+                {payout.trackingId || "-"}
               </div>
 
               <div

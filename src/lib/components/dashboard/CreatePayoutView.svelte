@@ -151,7 +151,9 @@
       "Business Name",
       "Email",
       "Transaction ID",
-      "Amount"
+      "Tracking ID",
+      "Amount",
+      "TDS"
     ];
     const customHeaders =
       realProgram?.additionalFields?.map((f: any) => f.key) || [];
@@ -160,33 +162,44 @@
     // Create simple CSV content with headers row
     let csvContent = allHeaders.join(",") + "\n";
 
-    // Add example row pre-filled with the current Program Name and hyphens
-    const pName = realProgram?.name || "Program Name";
+    // Add example row pre-filled with the current Program Name and helpful placeholders
+    const exampleRow = [
+      realProgram?.name || "Program Name",
+      "Example Business Ltd", // Business Name
+      "finance@example.com",  // Email
+      `TXN${Math.floor(Math.random() * 1000000)}`, // Transaction ID
+      `TRK${Math.floor(Math.random() * 1000000)}`, // Tracking ID
+      "50000",                // Amount
+      "10"                    // TDS
+    ];
 
-    // Create an array with the program name, and hyphens for the rest of the columns
-    const exampleRow = [pName];
-    for (let i = 1; i < allHeaders.length; i++) {
+    // Add hyphens for any remaining custom program fields
+    for (let i = exampleRow.length; i < allHeaders.length; i++) {
       exampleRow.push("-");
     }
 
     csvContent += exampleRow.join(",") + "\n";
 
     // Trigger download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     const cleanProgramName =
       realProgram?.name?.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "payouts";
-    link.setAttribute("download", `${cleanProgramName}_template.csv`);
+    link.download = `${cleanProgramName}_template.csv`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-
-    // Reset UI state quickly
+    
+    // Add a slight delay before cleaning up the DOM and object URL
+    // Normal Chrome tabs with heavy extensions can cancel the download if the element is removed synchronously
     setTimeout(() => {
-      isTemplateReady = false;
-    }, 600);
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 200);
+    
+    // We intentionally do NOT set isTemplateReady to false here,
+    // otherwise it replaces the button with a permanent loading spinner.
   }
   let payeeSearchTerm = $state("");
   let filteredPayees = $derived.by(() => {
@@ -1195,7 +1208,9 @@
                                 <th class="p-4 border-r border-slate-100"
                                   >Extra Info</th
                                 >
-                                <th class="p-4 border-r border-slate-100">TDS</th>
+                                <th class="p-4 border-r border-slate-100"
+                                  >TDS</th
+                                >
                                 <th class="p-4">Validity</th>
                               </tr>
                             </thead>
@@ -1252,8 +1267,9 @@
                                       >
                                     {/if}
                                   </td>
-                                  <td class="p-4 font-medium text-slate-600 border-r border-slate-100"
-                                    >{row.tds ? `${row.tds}%` : '-'}</td
+                                  <td
+                                    class="p-4 font-medium text-slate-600 border-r border-slate-100"
+                                    >{row.tds ? `${row.tds}%` : "-"}</td
                                   >
                                   <td class="p-4 font-medium text-slate-600"
                                     >{row.validity}</td
@@ -1404,7 +1420,9 @@
                         >Validity: {row.validity}</span
                       >
                       {#if row.tds > 0}
-                        <span class="font-medium text-slate-500">TDS: {row.tds}%</span>
+                        <span class="font-medium text-slate-500"
+                          >TDS: {row.tds}%</span
+                        >
                       {/if}
                     </div>
                   </div>
@@ -1552,7 +1570,8 @@
                         ></span
                       >
                       {#if row.tds > 0}
-                        <span class="text-[10px] font-medium text-slate-400 mt-0.5"
+                        <span
+                          class="text-[10px] font-medium text-slate-400 mt-0.5"
                           >TDS: <span class="text-slate-600 font-semibold"
                             >{row.tds}%</span
                           ></span
@@ -1581,7 +1600,8 @@
                     TDS Deduction: {tdsPercentage}%
                   </span>
                 {/if}
-                <span class="text-[9px] font-medium text-slate-400 mt-1 bg-[#7d326f]/5 px-2 py-0.5 rounded"
+                <span
+                  class="text-[9px] font-medium text-slate-400 mt-1 bg-[#7d326f]/5 px-2 py-0.5 rounded"
                   >Transaction ID: <span class="text-slate-600 font-semibold"
                     >{txId ? txId : "-"}</span
                   ></span

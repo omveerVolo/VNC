@@ -41,21 +41,32 @@
       : [...dbStore.payouts]
     )
       .filter((p: any) => {
-        // ADMIN MODE: Show redeemable items
+        // ADMIN MODE: Show redeemable items evaluated against workflows
         if (isInternalAdmin) {
-          const statusMatch = p.status === "Ready to redeem";
-          if (!statusMatch) return false;
-
-          // Admin should only review/see items that were above the auto-redeem limit (51,000)
+          // Admin should only review/see items that trigger a payee's workflow
           const cleanAmount = String(p.amount || "0").replace(/[₹,]/g, "");
           const amountValue = parseInt(cleanAmount, 10) || 0;
-          if (amountValue <= 51000) return false;
+          
+          // Evaluate against active Payee workflows
+          const matchingWf = dbStore.workflows?.find((wf: any) => {
+            if (wf.payeeId !== p.payeeId) return false;
+            
+            const wfAmount = Number(wf.amount) || 0;
+            if (wf.compareKey === "More than" && amountValue > wfAmount) return true;
+            if (wf.compareKey === "Less than" && amountValue < wfAmount) return true;
+            if (wf.compareKey === "Equals" && amountValue === wfAmount) return true;
+            
+            return false;
+          });
+
+          // If it doesn't match a payee-defined workflow, Admin doesn't need to approve it
+          if (!matchingWf) return false;
 
           // If impersonating a specific payee, restrict to their items
           if (authState.isAdminView && authState.viewingAs) {
             return p.userId === authState.viewingAs.id;
           }
-          // Global admin view (not impersonating) shows all redeemable items
+          
           return true;
         }
 
@@ -112,6 +123,7 @@
           approvedAmount: `₹${p.amount}`,
           tds: p.tds ? `${p.tds}%` : "0%",
           payableAmount: `₹${formattedPayable}`,
+          transactionId: p.transactionId || "-",
           trackingId: p.trackingId || "-",
           status: p.status
         };
@@ -119,10 +131,9 @@
   );
 
   let paginatedPayouts = $derived(
-    filteredPayouts.slice(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
-    )
+    filteredPayouts
+      .reverse()
+      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
   );
 
   let totalPages = $derived(
@@ -275,13 +286,13 @@
               <div
                 class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
-                {payout.id}
+                {payout.transactionId || "-"}
               </div>
 
               <div
                 class="col-span-1 font-mono text-slate-500 text-[12px] whitespace-nowrap"
               >
-                {payout.trackingId}
+                {payout.trackingId || "-"}
               </div>
 
               <div

@@ -31,28 +31,27 @@
     isLoading = true;
     errorMessage = "";
 
-    setTimeout(() => {
-      isLoading = false;
+    apiCall(`/user?email=${encodeURIComponent(emailOrPhone)}`)
+      .then((apiUser) => {
+        if (!apiUser) throw new Error("Not found");
+        const user = {
+          id: apiUser.id || emailOrPhone,
+          email: apiUser.email || emailOrPhone,
+          role: apiUser.role || "payer",
+          name: apiUser.name || "API User",
+          ...apiUser
+        };
 
-      apiCall(`/user?email=${encodeURIComponent(emailOrPhone)}`)
-        .then((apiUser) => {
-          if (!apiUser) throw new Error("Not found");
-          const user = {
-            id: apiUser.id || emailOrPhone,
-            email: apiUser.email || emailOrPhone,
-            role: apiUser.role || "payer",
-            name: apiUser.name || "API User",
-            ...apiUser
-          };
-
-          pendingUser = user;
-          step = 2;
-          setTimeout(() => otpInputs[0]?.focus(), 50);
-        })
-        .catch(() => {
-          errorMessage = "Account not found in remote system. Please sign up.";
-        });
-    }, 800);
+        pendingUser = user;
+        step = 2;
+        setTimeout(() => otpInputs[0]?.focus(), 50);
+      })
+      .catch(() => {
+        errorMessage = "Account not found in remote system. Please sign up.";
+      })
+      .finally(() => {
+        isLoading = false;
+      });
   }
 
   function handleVerifyOtp() {
