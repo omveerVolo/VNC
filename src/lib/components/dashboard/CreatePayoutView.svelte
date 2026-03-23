@@ -253,17 +253,21 @@
       const rows = text.split(/\r?\n/);
       if (rows.length > 1) {
         const headers = rows[0].split(",");
-        const programNameIndex = headers.findIndex((h) => h.trim().replace(/^"|"$/g, '') === "Program Name");
+        const programNameIndex = headers.findIndex(
+          (h) => h.trim().replace(/^"|"$/g, "") === "Program Name"
+        );
         if (programNameIndex !== -1) {
           const firstDataRow = rows[1].split(",");
-          const csvProgramName = firstDataRow[programNameIndex]?.trim().replace(/^"|"$/g, '');
+          const csvProgramName = firstDataRow[programNameIndex]
+            ?.trim()
+            .replace(/^"|"$/g, "");
           if (csvProgramName && csvProgramName !== selectedProgram) {
             csvUploadError = `Warning: The Program Name in the CSV ("${csvProgramName}") does not match the currently selected program ("${selectedProgram}").`;
             return;
           }
         }
       }
-    } catch(e) {}
+    } catch (e) {}
 
     isUploadingCsv = true;
     bulkStep = "upload"; // Instantly switch UI text to upload state
@@ -332,7 +336,7 @@
     e.preventDefault();
     isDraggingFile = false;
     if (selectedProgram === "No Active Programs") return;
-    
+
     if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
       if (file.type === "text/csv" || file.name.endsWith(".csv")) {
@@ -810,7 +814,7 @@
               </div>
             </div>
 
-            <!-- 4. Transaction ID -->
+            <!-- 4. Tracking ID -->
             <div class="flex flex-col gap-4 mt-6">
               <div class="flex items-center gap-2">
                 <span
@@ -825,7 +829,7 @@
                 <label
                   for="txId"
                   class="mb-2 block text-xs font-medium text-slate-600"
-                  >Transaction ID</label
+                  >Tracking ID</label
                 >
                 <input
                   id="txId"
@@ -1149,14 +1153,23 @@
                       ondragover={handleDragOver}
                       ondragleave={handleDragLeave}
                       ondrop={handleDrop}
-                      disabled={isUploadingCsv || selectedProgram === "No Active Programs"}
-                      class="relative w-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-2xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group {isDraggingFile ? 'border-[#7d326f] bg-[#7d326f]/5' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400'}"
+                      disabled={isUploadingCsv ||
+                        selectedProgram === "No Active Programs"}
+                      class="relative w-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-2xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group {isDraggingFile
+                        ? 'border-[#7d326f] bg-[#7d326f]/5'
+                        : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400'}"
                     >
                       {#if isUploadingCsv}
-                        <div class="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#7d326f] mb-4"></div>
-                        <p class="text-sm font-semibold text-slate-700">Uploading and Parsing File...</p>
+                        <div
+                          class="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#7d326f] mb-4"
+                        ></div>
+                        <p class="text-sm font-semibold text-slate-700">
+                          Uploading and Parsing File...
+                        </p>
                       {:else}
-                        <div class="h-14 w-14 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center text-slate-500 mb-4 group-hover:text-[#7d326f] transition-colors">
+                        <div
+                          class="h-14 w-14 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center text-slate-500 mb-4 group-hover:text-[#7d326f] transition-colors"
+                        >
                           <Upload class="h-6 w-6" />
                         </div>
                         <p class="text-[15px] font-semibold text-slate-800">
@@ -1176,9 +1189,27 @@
                       onchange={handleCsvUpload}
                     />
                     {#if csvUploadError}
-                      <div class="mt-4 flex items-center gap-3 rounded-xl bg-orange-50 border border-orange-100 p-4 shadow-sm animate-in fade-in duration-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle text-orange-500 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                        <span class="text-[13px] font-semibold text-orange-700">{csvUploadError}</span>
+                      <div
+                        class="mt-4 flex items-center gap-3 rounded-xl bg-orange-50 border border-orange-100 p-4 shadow-sm animate-in fade-in duration-300"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-alert-triangle text-orange-500 shrink-0"
+                          ><path
+                            d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
+                          /><path d="M12 9v4" /><path d="M12 17h.01" /></svg
+                        >
+                        <span class="text-[13px] font-semibold text-orange-700"
+                          >{csvUploadError}</span
+                        >
                       </div>
                     {/if}
                   </div>
