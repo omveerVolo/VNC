@@ -1562,7 +1562,7 @@
 
             <div class="flex flex-col gap-1">
               <span class="text-xs font-semibold text-slate-500"
-                >Transaction ID</span
+                >Tracking ID</span
               >
               <span class="font-medium text-slate-700">{txId ? txId : "-"}</span
               >
@@ -1689,7 +1689,7 @@
                 {/if}
                 <span
                   class="text-[9px] font-medium text-slate-400 mt-1 bg-[#7d326f]/5 px-2 py-0.5 rounded"
-                  >Transaction ID: <span class="text-slate-600 font-semibold"
+                  >Tracking ID: <span class="text-slate-600 font-semibold"
                     >{txId ? txId : "-"}</span
                   ></span
                 >
