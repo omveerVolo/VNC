@@ -11,12 +11,22 @@
 
   let searchQuery = $state("");
 
+  let currentPage = $state(1);
+  const itemsPerPage = 10;
+
+  $effect(() => {
+    if (searchQuery !== undefined) {
+      currentPage = 1;
+    }
+  });
+
   // Feed settled payouts from the reactive mock database
-  let payouts = $derived(
-    (activeUser?.role === "payer"
-      ? [...dbStore.payouts].reverse()
-      : [...dbStore.payouts]
-    )
+  let filteredPayouts = $derived(
+    [...dbStore.payouts].sort((a: any, b: any) => {
+      const db = new Date(b.createdAt || b.date).getTime();
+      const da = new Date(a.createdAt || a.date).getTime();
+      return db - da;
+    })
       .filter((p: any) => p.status === "Settled")
       .filter((p: any) =>
         activeUser?.role === "payee" ? p.userId === activeUser.id : true
@@ -67,6 +77,17 @@
           utr: `HDFCR${Math.abs(hashString(p.claimNo)).toString().padStart(9, "0")}`
         };
       })
+  );
+
+  let paginatedPayouts = $derived(
+    filteredPayouts.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    )
+  );
+
+  let totalPages = $derived(
+    Math.ceil(filteredPayouts.length / itemsPerPage) || 1
   );
 
   // Quick consistent hash function to keep UTR static per claim
@@ -140,7 +161,7 @@
 
         <!-- Grid Rows -->
         <div class="mt-3 flex flex-col gap-3">
-          {#each [...payouts].reverse() as payout}
+          {#each paginatedPayouts as payout}
             <div
               class="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1.5fr_1fr_1.5fr_1.5fr_1.5fr] items-center gap-4 rounded-xl border border-transparent bg-slate-50 px-6 py-4 transition-all hover:-translate-y-0.5 hover:shadow-sm cursor-default"
             >
@@ -240,5 +261,40 @@
         </div>
       </div>
     </div>
+
+    <!-- Pagination Controls -->
+    {#if filteredPayouts.length > itemsPerPage}
+      <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pb-24">
+        <span class="text-[13px] font-medium text-slate-500">
+          Showing <span class="text-slate-900 font-semibold"
+            >{(currentPage - 1) * itemsPerPage + 1}</span
+          >
+          to
+          <span class="text-slate-900 font-semibold"
+            >{Math.min(currentPage * itemsPerPage, filteredPayouts.length)}</span
+          >
+          of <span class="text-slate-900 font-semibold">{filteredPayouts.length}</span> entries
+        </span>
+        <div class="flex items-center gap-2">
+          <button
+            class="flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={() => currentPage > 1 && currentPage--}
+            disabled={currentPage === 1}
+          >
+            Prev
+          </button>
+          <span class="px-2 text-[13px] font-semibold text-slate-700">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            class="flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={() => currentPage < totalPages && currentPage++}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>

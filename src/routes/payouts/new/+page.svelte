@@ -39,13 +39,11 @@
 
   // Reactive derived state feeding off the global Database Store for "Approved" payloads
   let filteredPayouts = $derived(
-    (activeUser?.role === "payer"
-      ? [...dbStore.payouts].reverse()
-      : [...dbStore.payouts].sort(
-          (a: any, b: any) =>
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-        )
-    )
+    [...dbStore.payouts].sort((a: any, b: any) => {
+      const db = new Date(b.createdAt || b.date).getTime();
+      const da = new Date(a.createdAt || a.date).getTime();
+      return db - da;
+    })
       .filter((p: any) => {
         // Only show payouts ready to redeem (or pending for the payer to see)
         if (activeUser?.role === "payee") {

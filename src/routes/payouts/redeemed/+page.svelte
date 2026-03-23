@@ -23,10 +23,11 @@
 
   // Feed redeemed payouts from the reactive mock database
   let filteredPayouts = $derived(
-    (activeUser?.role === "payer"
-      ? [...dbStore.payouts].reverse()
-      : [...dbStore.payouts]
-    )
+    [...dbStore.payouts].sort((a: any, b: any) => {
+      const db = new Date(b.createdAt || b.date).getTime();
+      const da = new Date(a.createdAt || a.date).getTime();
+      return db - da;
+    })
       .filter((p: any) => p.status === "Redeemed" || p.status === "Settled")
       .filter((p: any) =>
         activeUser?.role === "payee" ? p.userId === activeUser.id : true

@@ -36,10 +36,11 @@
 
   // Derived state reading exclusively payloads that need action
   let filteredPayouts = $derived(
-    (activeUser?.role === "payer"
-      ? [...dbStore.payouts].reverse()
-      : [...dbStore.payouts]
-    )
+    [...dbStore.payouts].sort((a: any, b: any) => {
+      const db = new Date(b.createdAt || b.date).getTime();
+      const da = new Date(a.createdAt || a.date).getTime();
+      return db - da;
+    })
       .filter((p: any) => {
         // ADMIN MODE: Show redeemable items evaluated against workflows
         if (isInternalAdmin) {
@@ -435,13 +436,48 @@
               >
                 There are no relevant payouts currently available in this view.
               </p>
-            </div>
           {/each}
         </div>
       </div>
     </div>
+    
+    <!-- Pagination Controls -->
+    {#if filteredPayouts.length > itemsPerPage}
+      <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pb-24">
+        <span class="text-[13px] font-medium text-slate-500">
+          Showing <span class="text-slate-900 font-semibold"
+            >{(currentPage - 1) * itemsPerPage + 1}</span
+          >
+          to
+          <span class="text-slate-900 font-semibold"
+            >{Math.min(currentPage * itemsPerPage, filteredPayouts.length)}</span
+          >
+          of <span class="text-slate-900 font-semibold">{filteredPayouts.length}</span> entries
+        </span>
+        <div class="flex items-center gap-2">
+          <button
+            class="flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={() => currentPage > 1 && currentPage--}
+            disabled={currentPage === 1}
+          >
+            Prev
+          </button>
+          <span class="px-2 text-[13px] font-semibold text-slate-700">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            class="flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={() => currentPage < totalPages && currentPage++}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    {/if}
+  </div>
 
-    <!-- Floating Action Button (Only for Payer) -->
+  <!-- Floating Action Button (Only for Payer) -->
     {#if !isInternalAdmin}
       <div
         class="fixed bottom-0 left-0 md:left-28 right-0 flex items-center justify-center border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.1)] z-40 p-6"

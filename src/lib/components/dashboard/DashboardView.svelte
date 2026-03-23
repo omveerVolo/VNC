@@ -74,13 +74,11 @@
 
   // Map Recent Payouts globally from the Mock DB to track Redemption Mutability instantly across the Dashboard view
   let mappedPayouts = $derived(
-    (activeUser?.role === "payer" || activeUser?.role === "payee"
-      ? [...dbStore.payouts].reverse()
-      : [...dbStore.payouts].sort(
-          (a: any, b: any) =>
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-        )
-    )
+    [...dbStore.payouts].sort((a: any, b: any) => {
+      const db = new Date(b.createdAt || b.date).getTime();
+      const da = new Date(a.createdAt || a.date).getTime();
+      return db - da;
+    })
       .filter((p: any) => {
         const authMatch =
           activeUser?.role === "admin" && !authState.isAdminView
