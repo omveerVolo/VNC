@@ -301,7 +301,17 @@
     try {
       const response = await apiCall("/bulk-upload", "POST", formData);
 
-      if (response && (response.success === false || response.error)) {
+      const validRecords = response?.insertedRecords || response?.rows || [];
+      const invalidRecords =
+        response?.invalidDetails || response?.invalidRows || [];
+
+      // If we have no records at all AND there's an error, block and show error
+      if (
+        response &&
+        (response.success === false || response.error) &&
+        validRecords.length === 0 &&
+        invalidRecords.length === 0
+      ) {
         csvUploadError =
           response.error || response.message || "Failed to process CSV file.";
         bulkStep = "program";
@@ -310,13 +320,7 @@
         return;
       }
 
-      const validRecords = response?.insertedRecords || response?.rows || [];
-      const invalidRecords = response?.invalidDetails || [];
-
-      if (
-        (validRecords && Array.isArray(validRecords)) ||
-        (invalidRecords && Array.isArray(invalidRecords))
-      ) {
+      if (validRecords.length > 0 || invalidRecords.length > 0) {
         // Map backend response format to frontend format
         const mappedValid = validRecords.map((r: any, idx: number) => {
           const email = r.Email || r.email || "";
