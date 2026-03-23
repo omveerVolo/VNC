@@ -139,17 +139,7 @@
   let csvData = $state<any[]>([]);
 
   let mismatchedRows = $derived.by(() => {
-    return csvData.filter((row) => {
-      const match = programPayees.find((p: any) => {
-        const matchId = (p.id && p.id === row.payeeId) || (p.payeeId && p.payeeId === row.payeeId);
-        const matchEmail = p.email && row.email && String(p.email).toLowerCase() === String(row.email).toLowerCase();
-        const pName = String(p.businessName || p.name || "").toLowerCase();
-        const rName = String(row.businessName || row.name || "").toLowerCase();
-        const matchName = pName && rName && pName === rName;
-        return matchId || matchEmail || matchName;
-      });
-      return !match;
-    });
+    return csvData.filter((row) => !row.isValid);
   });
 
   let isUploadingCsv = $state(false);
@@ -309,12 +299,13 @@
         return;
       }
 
-      const rowsArray = response?.rows || response?.insertedRecords;
+      const validRecords = response?.insertedRecords || response?.rows || [];
+      const invalidRecords = response?.invalidDetails || [];
 
-      if (rowsArray && Array.isArray(rowsArray)) {
+      if ((validRecords && Array.isArray(validRecords)) || (invalidRecords && Array.isArray(invalidRecords))) {
         // Map backend response format to frontend format
-        csvData = rowsArray.map((r: any, idx: number) => ({
-          id: r.id || r.payeeId || `csv_${idx}`,
+        const mappedValid = validRecords.map((r: any, idx: number) => ({
+          id: r.id || r.payeeId || `csv_valid_${idx}`,
           selected: true,
           email: r.email,
           payeeId: r.payeeId || r.id, // Fall back to MongoDB ID or whatever PK the backend sent
@@ -326,8 +317,33 @@
           currency: currency || "INR",
           extraFields: r.extraFields || {},
           validity: r.validity || "1 Month",
-          tds: r.tds || 0
+          tds: r.tds || 0,
+          isValid: true,
+          error: ""
         }));
+
+        const mappedInvalid = invalidRecords.map((errorDetail: any, idx: number) => {
+          const r = errorDetail.data || {};
+          return {
+            id: `csv_invalid_${idx}`,
+            selected: false,
+            email: r.Email || r.email || "Unknown",
+            payeeId: "",
+            businessName: r["Business Name"] || r.businessName || "",
+            amount: r.Amount || r.amount || "0",
+            currency: currency || "INR",
+            extraFields: r.extraFields || {
+              "invoice_number": r.invoice_number || r.InvoiceNumber || "",
+              "build": r.Build || r.build || ""
+            },
+            validity: "1 Month",
+            tds: r.TDS || r.tds || 0,
+            isValid: false,
+            error: errorDetail.error
+          };
+        });
+
+        csvData = [...mappedValid, ...mappedInvalid];
       } else {
         csvUploadError = response?.error || "Invalid CSV format from server or response missing rows";
         bulkStep = "program";
@@ -1337,11 +1353,22 @@
                             </thead>
                             <tbody class="divide-y divide-slate-100 bg-white">
                               {#each csvData as row (row.id)}
-                                <tr class="hover:bg-slate-50 transition-colors">
+                                <tr class="hover:bg-slate-50 transition-colors" class:bg-slate-50={!row.isValid}>
                                   <td
-                                    class="p-4 font-semibold text-slate-600 border-r border-slate-100"
-                                    >{row.email}</td
+                                    class="p-4 font-semibold border-r border-slate-100 text-slate-600"
                                   >
+                                    <div class="flex flex-col">
+                                      <div class="flex items-center gap-1.5">
+                                        {#if !row.isValid}
+                                          <div class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></div>
+                                        {/if}
+                                        <span>{row.email}</span>
+                                      </div>
+                                      {#if !row.isValid}
+                                        <span class="text-[10px] font-medium text-slate-400 italic mt-0.5" class:ml-3={!row.isValid}>{row.error}</span>
+                                      {/if}
+                                    </div>
+                                  </td>
                                   <td
                                     class="p-4 font-semibold text-slate-800 border-r border-slate-100"
                                     >{row.amount} {row.currency}</td
@@ -1405,12 +1432,12 @@
                             <div class="flex items-center gap-3">
                               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-rose-600 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
                               <span class="text-[13px] font-medium text-rose-800">
-                                {mismatchedRows.length} email(s) do not match the enrolled payees or do not exist.
+                                {mismatchedRows.length} email(s) not found in enrolled payees or contain faults.
                               </span>
                             </div>
-                            <button class="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm ring-1 ring-inset ring-rose-200 pointer-events-none">
+                            <button class="flex items-center gap-2 rounded-lg bg-white border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm pointer-events-none">
                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                              Invalid Payees
+                              Invalidated Records
                             </button>
                           </div>
                         {/if}
