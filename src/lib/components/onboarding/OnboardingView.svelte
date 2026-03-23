@@ -638,7 +638,7 @@
               Standard Fields
             </h3>
             <div class="flex flex-col gap-4">
-              {#each [{ key: "Program Name", type: "string" }, { key: "Business Name", type: "string" }, { key: "Email", type: "string" }, { key: "Transaction ID", type: "string" }, { key: "Tracking ID", type: "string" }, { key: "Amount", type: "number" }, { key: "TDS", type: "number" }] as field, index (index)}
+              {#each [{ key: "Program Name", type: "string", required: true }, { key: "Business Name", type: "string", required: true }, { key: "Email", type: "string", required: true }, { key: "Transaction ID", type: "string", required: true }, { key: "Tracking ID", type: "string", required: false }, { key: "Amount", type: "number", required: true }, { key: "TDS", type: "number", required: false }] as field, index (index)}
                 <div
                   class="flex flex-col md:flex-row items-end gap-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-200 opacity-80"
                 >
@@ -696,7 +696,7 @@
                     >
                       <input
                         type="checkbox"
-                        checked
+                        checked={field.required}
                         disabled
                         class="accent-[#0066cc] w-4 h-4 rounded border-slate-300 cursor-not-allowed"
                       />

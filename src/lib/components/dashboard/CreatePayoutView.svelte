@@ -121,8 +121,11 @@
       end.setMonth(start.getMonth() + 3);
     }
 
-    const formatOpts = { month: "short", day: "numeric", year: "numeric" };
-    // const startStr = start.toLocaleDateString("en-US", formatOpts);
+    const formatOpts: Intl.DateTimeFormatOptions = {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    };
     const endStr = end.toLocaleDateString("en-US", formatOpts);
 
     return `${endStr}`;
@@ -253,6 +256,13 @@
     if (!file) return;
     csvUploadError = "";
 
+    // Prevent bulk upload if the program has no enrolled payees
+    if (programPayees.length === 0) {
+      csvUploadError =
+        "This program has no enrolled payees. Please invite and ensure payees accept the invitation before performing bulk payouts.";
+      return;
+    }
+
     try {
       const text = await file.text();
       const rows = text.split(/\r?\n/);
@@ -277,7 +287,7 @@
     isUploadingCsv = true;
     bulkStep = "upload"; // Instantly switch UI text to upload state
 
-    const realProgram = accessiblePrograms.find(
+    const realProgram = (accessiblePrograms as any[]).find(
       (p: any) => p.name === selectedProgram
     );
     const pid = realProgram ? realProgram.id : "prog_med_01";
@@ -292,7 +302,8 @@
       const response = await apiCall("/bulk-upload", "POST", formData);
 
       if (response && (response.success === false || response.error)) {
-        csvUploadError = response.error || response.message || "Failed to process CSV file.";
+        csvUploadError =
+          response.error || response.message || "Failed to process CSV file.";
         bulkStep = "program";
         isUploadingCsv = false;
         if (fileInput) fileInput.value = "";
@@ -302,7 +313,10 @@
       const validRecords = response?.insertedRecords || response?.rows || [];
       const invalidRecords = response?.invalidDetails || [];
 
-      if ((validRecords && Array.isArray(validRecords)) || (invalidRecords && Array.isArray(invalidRecords))) {
+      if (
+        (validRecords && Array.isArray(validRecords)) ||
+        (invalidRecords && Array.isArray(invalidRecords))
+      ) {
         // Map backend response format to frontend format
         const mappedValid = validRecords.map((r: any, idx: number) => ({
           id: r.id || r.payeeId || `csv_valid_${idx}`,
@@ -322,32 +336,38 @@
           error: ""
         }));
 
-        const mappedInvalid = invalidRecords.map((errorDetail: any, idx: number) => {
-          const r = errorDetail.data || {};
-          return {
-            id: `csv_invalid_${idx}`,
-            selected: false,
-            email: r.Email || r.email || "Unknown",
-            payeeId: "",
-            businessName: r["Business Name"] || r.businessName || "",
-            amount: r.Amount || r.amount || "0",
-            currency: currency || "INR",
-            extraFields: r.extraFields || {
-              "invoice_number": r.invoice_number || r.InvoiceNumber || "",
-              "build": r.Build || r.build || ""
-            },
-            validity: "1 Month",
-            tds: r.TDS || r.tds || 0,
-            isValid: false,
-            error: errorDetail.error
-          };
-        });
+        const mappedInvalid = invalidRecords.map(
+          (errorDetail: any, idx: number) => {
+            const r = errorDetail.data || {};
+            return {
+              id: `csv_invalid_${idx}`,
+              selected: false,
+              email: r.Email || r.email || "Unknown",
+              payeeId: "",
+              businessName: r["Business Name"] || r.businessName || "",
+              amount: r.Amount || r.amount || "0",
+              currency: currency || "INR",
+              extraFields: r.extraFields || {
+                invoice_number: r.invoice_number || r.InvoiceNumber || "",
+                build: r.Build || r.build || ""
+              },
+              validity: "1 Month",
+              tds: r.TDS || r.tds || 0,
+              isValid: false,
+              error: errorDetail.error
+            };
+          }
+        );
 
         csvData = [...mappedValid, ...mappedInvalid];
       } else {
-        csvUploadError = response?.error || "Invalid CSV format from server or response missing rows";
+        csvUploadError =
+          response?.error ||
+          "Invalid CSV format from server or response missing rows";
         bulkStep = "program";
-        console.error("Invalid CSV format from server or response missing rows");
+        console.error(
+          "Invalid CSV format from server or response missing rows"
+        );
       }
     } catch (err) {
       console.error("Error bulk uploading CSV", err);
@@ -443,7 +463,7 @@
   function handleSubmit() {
     // Generate the mocked payout record reacting globally on the Dashboard
     // Find the real program ID so it filters correctly
-    const realProgram = accessiblePrograms.find(
+    const realProgram = (accessiblePrograms as any[]).find(
       (p: any) => p.name === selectedProgram
     );
     const pid = realProgram ? realProgram.id : "prog_med_01";
@@ -452,10 +472,17 @@
       const payloadArray = csvData.map((row) => {
         // Find if payee exists
         const match = programPayees.find((p: any) => {
-          const matchId = (p.id && p.id === row.payeeId) || (p.payeeId && p.payeeId === row.payeeId);
-          const matchEmail = p.email && row.email && String(p.email).toLowerCase() === String(row.email).toLowerCase();
+          const matchId =
+            (p.id && p.id === row.payeeId) ||
+            (p.payeeId && p.payeeId === row.payeeId);
+          const matchEmail =
+            p.email &&
+            row.email &&
+            String(p.email).toLowerCase() === String(row.email).toLowerCase();
           const pName = String(p.businessName || p.name || "").toLowerCase();
-          const rName = String(row.businessName || row.name || "").toLowerCase();
+          const rName = String(
+            row.businessName || row.name || ""
+          ).toLowerCase();
           const matchName = pName && rName && pName === rName;
           return matchId || matchEmail || matchName;
         });
@@ -1048,6 +1075,12 @@
                       options={programOptions}
                       disabled={bulkStep === "upload"}
                     />
+                    {#if programPayees.length === 0 && selectedProgram !== "No Active Programs"}
+                      <!-- <div class="mt-2 text-xs font-semibold text-rose-500 flex items-center gap-1.5 bg-rose-50 border border-rose-100 p-2 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>This program has 0 enrolled payees. Invitations must be accepted first.</span>
+                      </div> -->
+                    {/if}
                   </div>
                   {#if journey === "bulk"}
                     <div class="h-12 flex items-center">
@@ -1353,19 +1386,28 @@
                             </thead>
                             <tbody class="divide-y divide-slate-100 bg-white">
                               {#each csvData as row (row.id)}
-                                <tr class="hover:bg-slate-50 transition-colors" class:bg-slate-50={!row.isValid}>
+                                <tr
+                                  class="hover:bg-slate-50 transition-colors"
+                                  class:bg-slate-50={!row.isValid}
+                                >
                                   <td
                                     class="p-4 font-semibold border-r border-slate-100 text-slate-600"
                                   >
                                     <div class="flex flex-col">
                                       <div class="flex items-center gap-1.5">
                                         {#if !row.isValid}
-                                          <div class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></div>
+                                          <div
+                                            class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"
+                                          ></div>
                                         {/if}
                                         <span>{row.email}</span>
                                       </div>
                                       {#if !row.isValid}
-                                        <span class="text-[10px] font-medium text-slate-400 italic mt-0.5" class:ml-3={!row.isValid}>{row.error}</span>
+                                        <span
+                                          class="text-[10px] font-medium text-slate-400 italic mt-0.5"
+                                          class:ml-3={!row.isValid}
+                                          >{row.error}</span
+                                        >
                                       {/if}
                                     </div>
                                   </td>
@@ -1426,17 +1468,57 @@
                       </div>
 
                       <!-- Action Button specific to Bulk Submits -->
-                      <div class="flex flex-col gap-4 mt-2 border-t border-slate-100 pt-6">
+                      <div
+                        class="flex flex-col gap-4 mt-2 border-t border-slate-100 pt-6"
+                      >
                         {#if mismatchedRows.length > 0}
-                          <div class="flex w-full items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm">
+                          <div
+                            class="flex w-full items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm"
+                          >
                             <div class="flex items-center gap-3">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-rose-600 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                              <span class="text-[13px] font-medium text-rose-800">
-                                {mismatchedRows.length} email(s) not found in enrolled payees or contain faults.
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="text-rose-600 shrink-0"
+                                ><path
+                                  d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
+                                /><path d="M12 9v4" /><path
+                                  d="M12 17h.01"
+                                /></svg
+                              >
+                              <span
+                                class="text-[13px] font-medium text-rose-800"
+                              >
+                                {mismatchedRows.length} email(s) not found in enrolled
+                                payees or contain faults.
                               </span>
                             </div>
-                            <button class="flex items-center gap-2 rounded-lg bg-white border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm pointer-events-none">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            <button
+                              class="flex items-center gap-2 rounded-lg bg-white border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm pointer-events-none"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                ><path
+                                  d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
+                                /><path d="M12 9v4" /><path
+                                  d="M12 17h.01"
+                                /></svg
+                              >
                               Invalidated Records
                             </button>
                           </div>
