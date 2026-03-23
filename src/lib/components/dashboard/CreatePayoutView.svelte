@@ -318,23 +318,31 @@
         (invalidRecords && Array.isArray(invalidRecords))
       ) {
         // Map backend response format to frontend format
-        const mappedValid = validRecords.map((r: any, idx: number) => ({
-          id: r.id || r.payeeId || `csv_valid_${idx}`,
-          selected: true,
-          email: r.email,
-          payeeId: r.payeeId || r.id, // Fall back to MongoDB ID or whatever PK the backend sent
-          businessName: r.businessName,
-          amount:
-            r.amount !== undefined && r.amount !== null
-              ? r.amount.toString()
-              : "0",
-          currency: currency || "INR",
-          extraFields: r.extraFields || {},
-          validity: r.validity || "1 Month",
-          tds: r.tds || 0,
-          isValid: true,
-          error: ""
-        }));
+        const mappedValid = validRecords.map((r: any, idx: number) => {
+          const email = r.Email || r.email || "";
+          const isEnrolled = programPayees.some(
+            (p) => String(p.email).toLowerCase() === String(email).toLowerCase()
+          );
+          return {
+            id: r.id || r.payeeId || `csv_valid_${idx}`,
+            selected: isEnrolled,
+            email: email,
+            payeeId: r.payeeId || r.id, // Fall back to MongoDB ID or whatever PK the backend sent
+            businessName: r.businessName || r["Business Name"] || "",
+            amount:
+              r.Amount || (r.amount !== undefined && r.amount !== null
+                ? r.amount.toString()
+                : "0"),
+            currency: currency || "INR",
+            extraFields: r.extraFields || {},
+            validity: r.validity || "1 Month",
+            tds: r.TDS || r.tds || 0,
+            isValid: isEnrolled,
+            error: isEnrolled
+              ? ""
+              : `Payee with email ${email} is not enrolled in this program.`
+          };
+        });
 
         const mappedInvalid = invalidRecords.map(
           (errorDetail: any, idx: number) => {
