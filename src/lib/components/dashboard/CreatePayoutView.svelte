@@ -61,7 +61,7 @@
     const match = programPayees.find(
       (p: any) => (p.businessName || p.name || p.email) === selectedPayee
     );
-    return match?.id || "";
+    return match?.id || match?.payeeId || match?.userId || "";
   });
 
   $effect(() => {
@@ -137,6 +137,21 @@
   // CSV Upload State
   let fileInput = $state<HTMLInputElement>();
   let csvData = $state<any[]>([]);
+
+  let mismatchedRows = $derived.by(() => {
+    return csvData.filter((row) => {
+      const match = programPayees.find((p: any) => {
+        const matchId = (p.id && p.id === row.payeeId) || (p.payeeId && p.payeeId === row.payeeId);
+        const matchEmail = p.email && row.email && String(p.email).toLowerCase() === String(row.email).toLowerCase();
+        const pName = String(p.businessName || p.name || "").toLowerCase();
+        const rName = String(row.businessName || row.name || "").toLowerCase();
+        const matchName = pName && rName && pName === rName;
+        return matchId || matchEmail || matchName;
+      });
+      return !match;
+    });
+  });
+
   let isUploadingCsv = $state(false);
   let isDraggingFile = $state(false);
   let csvUploadError = $state("");
@@ -286,13 +301,23 @@
     try {
       const response = await apiCall("/bulk-upload", "POST", formData);
 
-      if (response && response.rows) {
+      if (response && (response.success === false || response.error)) {
+        csvUploadError = response.error || response.message || "Failed to process CSV file.";
+        bulkStep = "program";
+        isUploadingCsv = false;
+        if (fileInput) fileInput.value = "";
+        return;
+      }
+
+      const rowsArray = response?.rows || response?.insertedRecords;
+
+      if (rowsArray && Array.isArray(rowsArray)) {
         // Map backend response format to frontend format
-        csvData = response.rows.map((r: any, idx: number) => ({
-          id: r.payeeId || `csv_${idx}`,
+        csvData = rowsArray.map((r: any, idx: number) => ({
+          id: r.id || r.payeeId || `csv_${idx}`,
           selected: true,
           email: r.email,
-          payeeId: r.payeeId,
+          payeeId: r.payeeId || r.id, // Fall back to MongoDB ID or whatever PK the backend sent
           businessName: r.businessName,
           amount:
             r.amount !== undefined && r.amount !== null
@@ -304,7 +329,9 @@
           tds: r.tds || 0
         }));
       } else {
-        console.error("Invalid CSV format from server");
+        csvUploadError = response?.error || "Invalid CSV format from server or response missing rows";
+        bulkStep = "program";
+        console.error("Invalid CSV format from server or response missing rows");
       }
     } catch (err) {
       console.error("Error bulk uploading CSV", err);
@@ -408,11 +435,14 @@
     if (csvData.length > 0) {
       const payloadArray = csvData.map((row) => {
         // Find if payee exists
-        const match = programPayees.find(
-          (p: any) =>
-            (p.businessName || p.name || p.email) ===
-            (row.businessName || row.email)
-        );
+        const match = programPayees.find((p: any) => {
+          const matchId = (p.id && p.id === row.payeeId) || (p.payeeId && p.payeeId === row.payeeId);
+          const matchEmail = p.email && row.email && String(p.email).toLowerCase() === String(row.email).toLowerCase();
+          const pName = String(p.businessName || p.name || "").toLowerCase();
+          const rName = String(row.businessName || row.name || "").toLowerCase();
+          const matchName = pName && rName && pName === rName;
+          return matchId || matchEmail || matchName;
+        });
         const pidRow = match?.id || row.payeeId || "";
         return {
           amount: row.amount,
@@ -1369,23 +1399,39 @@
                       </div>
 
                       <!-- Action Button specific to Bulk Submits -->
-                      <div
-                        class="flex w-full justify-end gap-4 border-t border-slate-100 pt-6 mt-2"
-                      >
-                        <button
-                          onclick={handleCancel}
-                          class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onclick={() => {
-                            handleSubmit();
-                          }}
-                          class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer"
-                        >
-                          Submit Payouts
-                        </button>
+                      <div class="flex flex-col gap-4 mt-2 border-t border-slate-100 pt-6">
+                        {#if mismatchedRows.length > 0}
+                          <div class="flex w-full items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm">
+                            <div class="flex items-center gap-3">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-rose-600 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                              <span class="text-[13px] font-medium text-rose-800">
+                                {mismatchedRows.length} email(s) do not match the enrolled payees or do not exist.
+                              </span>
+                            </div>
+                            <button class="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm ring-1 ring-inset ring-rose-200 pointer-events-none">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                              Invalid Payees
+                            </button>
+                          </div>
+                        {/if}
+
+                        <div class="flex w-full justify-end gap-4">
+                          <button
+                            onclick={handleCancel}
+                            class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onclick={() => {
+                              handleSubmit();
+                            }}
+                            disabled={mismatchedRows.length > 0}
+                            class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#7d326f] disabled:active:scale-100"
+                          >
+                            Submit Payouts
+                          </button>
+                        </div>
                       </div>
                     </div>
                   {/if}
@@ -1489,10 +1535,10 @@
                   >
                     <div class="flex justify-between items-start">
                       <div class="flex flex-col">
-                        <span
+                        <!-- <span
                           class="font-semibold text-slate-900 text-sm truncate max-w-[150px]"
                           >{row.businessName}</span
-                        >
+                        > -->
                         <span class="font-medium text-slate-500 text-xs mt-0.5"
                           >{row.email}</span
                         >

@@ -36,11 +36,12 @@
 
   // Derived state reading exclusively payloads that need action
   let filteredPayouts = $derived(
-    [...dbStore.payouts].sort((a: any, b: any) => {
-      const db = new Date(b.createdAt || b.date).getTime();
-      const da = new Date(a.createdAt || a.date).getTime();
-      return db - da;
-    })
+    [...dbStore.payouts]
+      .sort((a: any, b: any) => {
+        const db = new Date(b.createdAt || b.date).getTime();
+        const da = new Date(a.createdAt || a.date).getTime();
+        return db - da;
+      })
       .filter((p: any) => {
         // ADMIN MODE: Show redeemable items evaluated against workflows
         if (isInternalAdmin) {
@@ -121,7 +122,7 @@
         });
 
         return {
-          dbId: p.id, // Keep a reference to the global mutable ID
+          dbId: p.id || p.payoutId, // Keep a reference to the global mutable ID
           payoutId: p.payoutId,
           id: p.transactionId || p.trackingId || p.claimNo,
           program: program?.name || "Medical Payouts 2026",
@@ -165,7 +166,8 @@
     if (selectedPayoutIds.length > 0) {
       // Payer approves via API
       const res = await apiCall("/payouts/status", "PUT", {
-        payoutIds: selectedPayoutIds
+        payoutIds: selectedPayoutIds,
+        status: "Ready to redeem"
       });
       if (res !== null) {
         for (const payoutId of selectedPayoutIds) {
@@ -436,23 +438,32 @@
               >
                 There are no relevant payouts currently available in this view.
               </p>
+            </div>
           {/each}
         </div>
       </div>
     </div>
-    
+
     <!-- Pagination Controls -->
     {#if filteredPayouts.length > itemsPerPage}
-      <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pb-24">
+      <div
+        class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pb-24"
+      >
         <span class="text-[13px] font-medium text-slate-500">
           Showing <span class="text-slate-900 font-semibold"
             >{(currentPage - 1) * itemsPerPage + 1}</span
           >
           to
           <span class="text-slate-900 font-semibold"
-            >{Math.min(currentPage * itemsPerPage, filteredPayouts.length)}</span
+            >{Math.min(
+              currentPage * itemsPerPage,
+              filteredPayouts.length
+            )}</span
           >
-          of <span class="text-slate-900 font-semibold">{filteredPayouts.length}</span> entries
+          of
+          <span class="text-slate-900 font-semibold"
+            >{filteredPayouts.length}</span
+          > entries
         </span>
         <div class="flex items-center gap-2">
           <button
@@ -475,9 +486,8 @@
         </div>
       </div>
     {/if}
-  </div>
 
-  <!-- Floating Action Button (Only for Payer) -->
+    <!-- Floating Action Button (Only for Payer) -->
     {#if !isInternalAdmin}
       <div
         class="fixed bottom-0 left-0 md:left-28 right-0 flex items-center justify-center border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.1)] z-40 p-6"
@@ -511,7 +521,7 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div
-        class="absolute inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm p-4 animate-in fade-in duration-300"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 backdrop-blur-sm p-4 animate-in fade-in duration-300"
       >
         <div
           class="relative w-[320px] rounded-[24px] bg-white p-8 shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col items-center justify-center border border-slate-100 ring-1 ring-black/5"

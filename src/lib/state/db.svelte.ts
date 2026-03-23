@@ -34,12 +34,14 @@ export async function apiCall(
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, options);
+    const text = await response.text();
+    
     // Explicitly handle no-content or bad responses gracefully
     if (!response.ok) {
       console.warn(`API error on ${endpoint}: ${response.status}`);
-      return null;
+      // Return the parsed error JSON if available, otherwise null
+      return text ? JSON.parse(text) : null;
     }
-    const text = await response.text();
     return text ? JSON.parse(text) : null;
   } catch (error) {
     console.error(`Network error on ${endpoint}: `, error);
@@ -105,7 +107,7 @@ function saveDb() {
 export function redeemPayout(payoutId: string) {
   // Reassign the array to securely trigger Svelte 5 reactivity across derived trackers
   dbStore.payouts = dbStore.payouts.map((p: any) =>
-    p.id === payoutId ? { ...p, status: "Redeemed" } : p,
+    (p.id || p.payoutId) === payoutId ? { ...p, status: "Redeemed" } : p,
   );
   saveDb();
 }
@@ -121,11 +123,11 @@ export function upsertUser(user: any) {
 }
 
 export function approvePayerPayout(payoutId: string) {
-  const payout = dbStore.payouts.find((p: any) => p.id === payoutId);
+  const payout = dbStore.payouts.find((p: any) => (p.id || p.payoutId) === payoutId);
   if (!payout) return;
 
   dbStore.payouts = dbStore.payouts.map((p: any) =>
-    p.id === payoutId ? { ...p, status: "Ready to redeem" } : p,
+    (p.id || p.payoutId) === payoutId ? { ...p, status: "Ready to redeem" } : p,
   );
 
   // Provide a notification to the actual payee account about the approved payout
@@ -178,10 +180,9 @@ export function createPayout(payload: any | any[]) {
     
     // @ts-ignore
     const matchingWorkflow = dbStore.workflows?.find((wf: any) => {
-      // Evaluate strictly against the targeted payee's workflow
+      // Must exactly match the payee and program constraints
       if (wf.payeeId !== targetId) return false;
-      
-      if (wf.programId && wf.programId !== "all" && wf.programId !== programId) return false;
+      if (wf.programId !== "all" && wf.programId !== programId) return false;
 
       const wfAmount = Number(wf.amount) || 0;
       if (wf.compareKey === "More than" && amountNumber > wfAmount) return true;
@@ -218,6 +219,7 @@ export function createPayout(payload: any | any[]) {
       status: initialStatus,
       extraFields: extraFields || {},
       tds: tds || 0,
+      createdAt: new Date().toISOString(),
     };
 
     newPayouts.push(newPayout);

@@ -371,39 +371,40 @@
       </div>
     </div>
 
-    <!-- Pagination Controls
-    <div
-      class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6"
-    >
-      <span class="text-[13px] font-medium text-slate-500">
-        Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(
-          currentPage * itemsPerPage,
-          filteredPayouts.length
-        )} of {filteredPayouts.length} entries
-      </span>
-      <div class="flex items-center gap-2">
-        <button
-          disabled={currentPage === 1}
-          onclick={() => (currentPage -= 1)}
-          class="flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-        >
-          Previous
-        </button>
-        <div
-          class="flex items-center justify-center px-4 h-9 bg-slate-50 rounded-lg border border-slate-100 text-[13px] font-semibold text-slate-700"
-        >
-          Page {currentPage} of {totalPages}
+    <!-- Pagination Controls -->
+    {#if filteredPayouts.length > itemsPerPage}
+      <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-6 pb-24">
+        <span class="text-[13px] font-medium text-slate-500">
+          Showing <span class="text-slate-900 font-semibold"
+            >{(currentPage - 1) * itemsPerPage + 1}</span
+          >
+          to
+          <span class="text-slate-900 font-semibold"
+            >{Math.min(currentPage * itemsPerPage, filteredPayouts.length)}</span
+          >
+          of <span class="text-slate-900 font-semibold">{filteredPayouts.length}</span> entries
+        </span>
+        <div class="flex items-center gap-2">
+          <button
+            class="flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={() => currentPage > 1 && currentPage--}
+            disabled={currentPage === 1}
+          >
+            Prev
+          </button>
+          <span class="px-2 text-[13px] font-semibold text-slate-700">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            class="flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick={() => currentPage < totalPages && currentPage++}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </button>
         </div>
-        <button
-          disabled={currentPage === totalPages}
-          onclick={() => (currentPage += 1)}
-          class="flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-        >
-          Next
-        </button>
       </div>
-    </div>
-    -->
+    {/if}
   </div>
 
   {#if selectedPayout}

@@ -374,11 +374,11 @@
             <h2 class="text-3xl font-semibold text-slate-900">
               Welcome <span class="text-[#0066cc]">Payer!</span>
             </h2>
-            <p class="mt-2 text-[15px] font-medium text-slate-600">
+            <!-- <p class="mt-2 text-[15px] font-medium text-slate-600">
               {authState.user?.businessName ||
                 authState.user?.name ||
                 "Acme Insurance"}
-            </p>
+            </p> -->
           </div>
           <Building2
             class="h-10 w-10 text-slate-800"
@@ -635,7 +635,7 @@
             <h3
               class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1"
             >
-              Standard Locked Fields
+              Standard Fields
             </h3>
             <div class="flex flex-col gap-4">
               {#each [{ key: "Program Name", type: "string" }, { key: "Business Name", type: "string" }, { key: "Email", type: "string" }, { key: "Transaction ID", type: "string" }, { key: "Tracking ID", type: "string" }, { key: "Amount", type: "number" }, { key: "TDS", type: "number" }] as field, index (index)}

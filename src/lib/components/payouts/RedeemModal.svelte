@@ -39,7 +39,8 @@
         const payoutId = payout.payoutId;
         if (payoutId) {
           const res = await apiCall("/payouts/status", "PUT", {
-            payoutIds: [payoutId]
+            payoutIds: [payoutId],
+            status: "Redeemed"
           });
           if (res !== null) {
             redeemPayout(payout.dbId || payout.id);
