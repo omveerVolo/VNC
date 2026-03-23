@@ -132,8 +132,8 @@
           dbId: p.id,
           payoutId: p.payoutId,
           id: p.claimNo,
-          name: activeUser?.role === "payee" ? payerName : p.providerName,
-          provider: activeUser?.role === "payee" ? payerName : p.providerName, // Fallback for the modal
+          name: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
+          provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName), // Fallback for the modal
           category: program?.name || "Unknown Program",
           amount: "₹" + p.amount,
           payableAmount: "₹" + p.amount, // Fallback for the modal

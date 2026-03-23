@@ -103,7 +103,7 @@
           payoutId: p.payoutId,
           id: p.claimNo,
           program: program?.name || "Medical Payouts 2026",
-          provider: activeUser?.role === "payee" ? payerName : p.providerName,
+          provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
           patientName: p.patientName,
           createdAt: p.date,
           approvedAmount: `₹${p.amount}`,
@@ -117,9 +117,7 @@
   );
 
   let paginatedPayouts = $derived(
-    filteredPayouts
-      .reverse()
-      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    filteredPayouts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
   );
 
   let totalPages = $derived(
