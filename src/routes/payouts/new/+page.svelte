@@ -72,7 +72,7 @@
         const q = searchQuery.toLowerCase();
         return (
           p.providerName.toLowerCase().includes(q) ||
-          p.claimNo.toLowerCase().includes(q)
+          (p.transactionId || p.trackingId || p.claimNo || "").toLowerCase().includes(q)
         );
       })
       .map((p: any) => {
@@ -101,7 +101,7 @@
         return {
           dbId: p.id,
           payoutId: p.payoutId,
-          id: p.claimNo,
+          id: p.transactionId || p.trackingId || p.claimNo,
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
           patientName: p.patientName,

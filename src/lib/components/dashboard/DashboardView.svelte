@@ -131,7 +131,7 @@
         return {
           dbId: p.id,
           payoutId: p.payoutId,
-          id: p.claimNo,
+          id: p.transactionId || p.trackingId || p.claimNo,
           name: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
           provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName), // Fallback for the modal
           category: program?.name || "Unknown Program",

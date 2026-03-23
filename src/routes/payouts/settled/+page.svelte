@@ -26,7 +26,7 @@
         const q = searchQuery.toLowerCase();
         return (
           p.providerName.toLowerCase().includes(q) ||
-          p.claimNo.toLowerCase().includes(q)
+          (p.transactionId || p.trackingId || p.claimNo || "").toLowerCase().includes(q)
         );
       })
       .map((p: any) => {
@@ -51,7 +51,7 @@
         const formattedPayable = finalPayable.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
         return {
-          id: p.claimNo,
+          id: p.transactionId || p.trackingId || p.claimNo,
           trackingId: p.trackingId || "-",
           program: program?.name || "Medical Payouts 2026",
           provider: activeUser?.role === "payee" ? payerName : p.providerName,
