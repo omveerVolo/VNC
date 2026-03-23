@@ -26,7 +26,9 @@
         const q = searchQuery.toLowerCase();
         return (
           p.providerName.toLowerCase().includes(q) ||
-          (p.transactionId || p.trackingId || p.claimNo || "").toLowerCase().includes(q)
+          (p.transactionId || p.trackingId || p.claimNo || "")
+            .toLowerCase()
+            .includes(q)
         );
       })
       .map((p: any) => {
@@ -48,7 +50,9 @@
         const baseAmt = parseFloat(cleanAmt) || 0;
         const tdsNum = parseFloat(p.tds) || 0;
         const finalPayable = baseAmt - (baseAmt * tdsNum) / 100;
-        const formattedPayable = finalPayable.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        const formattedPayable = finalPayable.toLocaleString("en-IN", {
+          maximumFractionDigits: 2
+        });
 
         return {
           id: p.transactionId || p.trackingId || p.claimNo,
@@ -111,10 +115,7 @@
   <div
     class="mt-20 w-full rounded-2xl border border-slate-100 bg-white p-8 lg:p-12 shadow-sm flex flex-col overflow-hidden"
   >
-    <h1 class="text-2xl tracking-tight text-slate-800 mb-8">
-      <span class="text-[#3b2b73]">Track</span> your
-      <span class="text-[#3b2b73]">settled</span> claims
-    </h1>
+    <h1 class="text-2xl tracking-tight text-[#3b2b73] mb-8">Settled payouts</h1>
 
     <div class="w-full overflow-x-auto pb-4">
       <div class="min-w-[1000px] flex flex-col">

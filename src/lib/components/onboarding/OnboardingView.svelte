@@ -7,7 +7,8 @@
     ArrowLeft,
     User,
     Shield,
-    Loader2
+    Loader2,
+    X
   } from "lucide-svelte";
   import { createEventDispatcher } from "svelte";
   import { slide } from "svelte/transition";
@@ -130,10 +131,10 @@
       isInviting = false;
       showInvitationSuccess = true;
 
-      // Hide success message after a few seconds
+      // Hide success message after 10 seconds
       setTimeout(() => {
         showInvitationSuccess = false;
-      }, 3000);
+      }, 10000);
     }
   }
 
@@ -228,7 +229,7 @@
             <p
               class="mt-2 text-center text-[13px] font-medium text-slate-500 leading-relaxed px-2"
             >
-              Receive payments from payers and manage your earnings seamlessly
+              Receive payouts from payers and manage your earnings seamlessly
             </p>
             <ul
               class="mt-8 flex flex-col gap-3.5 text-[13px] font-medium text-slate-600 w-full px-4"
@@ -245,7 +246,7 @@
                   class="h-[18px] w-[18px] text-[#0066cc] mt-0.5 shrink-0"
                   strokeWidth={2}
                 />
-                <span>Track your payments in real-time</span>
+                <span>Track your Payouts in real-time</span>
               </li>
               <li class="flex items-start gap-2.5">
                 <CheckCircle2
@@ -283,7 +284,7 @@
             <p
               class="mt-2 text-center text-[13px] font-medium text-slate-500 leading-relaxed px-2"
             >
-              Set up payment programs and manage payees efficiently
+              Set up payout programs and manage payees efficiently
             </p>
             <ul
               class="mt-8 flex flex-col gap-3.5 text-[13px] font-medium text-slate-600 w-full px-4"
@@ -293,7 +294,7 @@
                   class="h-[18px] w-[18px] text-[#0066cc] mt-0.5 shrink-0"
                   strokeWidth={2}
                 />
-                <span>Configure payment programs</span>
+                <span>Configure payout programs</span>
               </li>
               <li class="flex items-start gap-2.5">
                 <CheckCircle2
@@ -410,9 +411,7 @@
             ? "Edit Program Configuration"
             : "Program Configuration"}
         </h2>
-        <p class="mt-1 text-sm font-medium text-slate-500">
-          Set up your payment program details
-        </p>
+        <p class="mt-1 text-sm font-medium text-slate-500">Setup details</p>
 
         <!-- ... input fields block ... -->
         <div class="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 md:grid-cols-3">
@@ -627,11 +626,103 @@
           Program Custom Fields
         </h2>
         <p class="mt-1 text-sm font-medium text-slate-500">
-          Define unique transaction fields required from payees for this
-          program.
+          define your unique transactions
         </p>
 
         <div class="mt-8 flex flex-col gap-6 w-full">
+          <!-- Default Mandatory Fields -->
+          <div class="flex flex-col gap-4 mb-2 relative px-1">
+            <h3
+              class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1"
+            >
+              Standard Locked Fields
+            </h3>
+            <div class="flex flex-col gap-4">
+              {#each [{ key: "Program Name", type: "string" }, { key: "Business Name", type: "string" }, { key: "Email", type: "string" }, { key: "Transaction ID", type: "string" }, { key: "Tracking ID", type: "string" }, { key: "Amount", type: "number" }, { key: "TDS", type: "number" }] as field, index (index)}
+                <div
+                  class="flex flex-col md:flex-row items-end gap-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-200 opacity-80"
+                >
+                  <div class="flex flex-col gap-2 w-full md:w-1/3 relative">
+                    <label class="text-xs font-semibold text-slate-700"
+                      >Field Name<span class="text-red-500">*</span></label
+                    >
+                    <div class="relative">
+                      <input
+                        type="text"
+                        value={field.key}
+                        disabled
+                        class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none bg-slate-100 text-slate-500 cursor-not-allowed pl-10"
+                      />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                        ><rect
+                          width="18"
+                          height="11"
+                          x="3"
+                          y="11"
+                          rx="2"
+                          ry="2"
+                        /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg
+                      >
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col gap-2 w-full md:w-1/3 relative">
+                    <label class="text-xs font-semibold text-slate-700"
+                      >Data Type<span class="text-red-500">*</span></label
+                    >
+                    <input
+                      type="text"
+                      value={field.type}
+                      disabled
+                      class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none bg-slate-100 text-slate-500 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div
+                    class="flex items-center gap-3 w-full md:w-auto h-12 flex-1 pt-1 md:pt-0"
+                  >
+                    <label
+                      class="flex items-center gap-2 h-full px-2 opacity-70 cursor-not-allowed"
+                    >
+                      <input
+                        type="checkbox"
+                        checked
+                        disabled
+                        class="accent-[#0066cc] w-4 h-4 rounded border-slate-300 cursor-not-allowed"
+                      />
+                      <span class="text-xs font-semibold text-slate-700"
+                        >Mandatory</span
+                      >
+                    </label>
+                  </div>
+
+                  <div class="h-12 flex items-center shrink-0 w-10">
+                    <!-- Invisible spacer identical to delete button to maintain width -->
+                  </div>
+                </div>
+              {/each}
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2">
+              These data fields are permanently baked into every transaction via
+              system API and cannot be modified.
+            </p>
+          </div>
+
+          <h3
+            class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1 mt-4 px-1"
+          >
+            Program Custom Fields
+          </h3>
           {#each customFields as field, index (index)}
             <div
               class="flex flex-col md:flex-row items-end gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 transition-all"
@@ -933,11 +1024,52 @@
               </button>
             </div>
             {#if showInvitationSuccess}
-              <p
-                class="text-[11px] font-semibold text-[#7d326f] animate-in fade-in slide-in-from-top-1 px-1"
+              <div
+                class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
               >
-                ✓ invitation sent
-              </p>
+                <style>
+                  @keyframes shrinkBar {
+                    from {
+                      width: 100%;
+                    }
+                    to {
+                      width: 0%;
+                    }
+                  }
+                  .animate-ticker {
+                    animation: shrinkBar 10s linear forwards;
+                  }
+                </style>
+                <div
+                  class="relative w-full max-w-sm overflow-hidden rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-300"
+                >
+                  <button
+                    onclick={() => (showInvitationSuccess = false)}
+                    class="absolute right-4 top-4 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    <X class="h-5 w-5" />
+                  </button>
+                  <div
+                    class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-600"
+                  >
+                    <CheckCircle2 class="h-6 w-6" />
+                  </div>
+                  <h3 class="text-lg font-bold text-slate-900">
+                    Thanks for recommending!
+                  </h3>
+                  <p
+                    class="mt-2 text-[13px] font-medium text-slate-500 leading-relaxed"
+                  >
+                    We will reach out to the business shortly. Once they are
+                    onboarded and verified, you will be automatically notified!
+                  </p>
+
+                  <!-- Timer Bar -->
+                  <div class="absolute bottom-0 left-0 h-1 w-full bg-slate-100">
+                    <div class="h-full bg-green-500 animate-ticker"></div>
+                  </div>
+                </div>
+              </div>
             {/if}
           </div>
         </div>

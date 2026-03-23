@@ -154,10 +154,14 @@
         : 'opacity-40 pointer-events-none'}"
     >
       {#each mainNav as item}
-        {@const isAdminDisabled = authState.user?.role?.toLowerCase() === 'admin' && (item.label === 'Programs' || item.label === 'Reports')}
+        {@const isAdminDisabled =
+          authState.user?.role?.toLowerCase() === "admin" &&
+          (item.label === "Programs" || item.label === "Reports")}
         {@const Icon = item.icon}
         <li
-          class="relative flex w-full justify-center group {isAdminDisabled ? 'opacity-40 cursor-not-allowed' : ''}"
+          class="relative flex w-full justify-center group {isAdminDisabled
+            ? 'opacity-40 cursor-not-allowed'
+            : ''}"
           onmouseenter={() => {
             if (item.path === "/payouts") hoverStates.payouts = true;
           }}
@@ -166,13 +170,18 @@
           }}
         >
           <a
-            href={item.path}
+            href={item.path === "/payouts" && (authState.isAdminView ? authState.viewingAs?.role : authState.user?.role) === "payer" ? "/create-payout" : item.path}
             onclick={(e) => {
               if (isAdminDisabled) {
                 e.preventDefault();
                 return;
               }
               if (item.path === "/payouts") {
+                if ((authState.isAdminView ? authState.viewingAs?.role : authState.user?.role) === "payer") {
+                  hoverStates.payouts = false;
+                  handleNavClick(e, "/create-payout");
+                  return;
+                }
                 e.preventDefault();
                 isPayoutsOpen = !isPayoutsOpen;
                 isSettingsOpen = false; // Close others
@@ -185,7 +194,9 @@
             (item.path === '/payouts' &&
               $page.url.pathname.startsWith('/payouts'))
               ? 'border-[#6e56cf] bg-[#2b2166] text-white shadow-sm'
-              : 'border-transparent text-slate-400 hover:border-[#6e56cf]/60 hover:bg-[#2b2166]/50 hover:text-white'} {isAdminDisabled ? 'pointer-events-none' : ''}"
+              : 'border-transparent text-slate-400 hover:border-[#6e56cf]/60 hover:bg-[#2b2166]/50 hover:text-white'} {isAdminDisabled
+              ? 'pointer-events-none'
+              : ''}"
           >
             <span
               class="mb-1.5 flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
@@ -288,28 +299,7 @@
             </div>
           {/if}
 
-          <!-- Payouts Submenu Overlay (Payer Only or Admin Impersonating Payer) -->
-          {#if item.path === "/payouts" && (authState.isAdminView ? authState.viewingAs?.role : authState.user?.role) === "payer"}
-            <div
-              class="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-xl w-56 z-50 flex flex-col pointer-events-auto border border-slate-100 overflow-visible transition-all duration-200 {hoverStates.payouts
-                ? 'opacity-100 visible'
-                : 'opacity-0 invisible'}"
-            >
-              <div class="flex flex-col p-2 space-y-1 relative">
-                <!-- Dropdown options -->
-                <a
-                  href="/create-payment"
-                  onclick={(e) => {
-                    hoverStates.payouts = false;
-                    closeMobileMenu();
-                  }}
-                  class="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 hover:text-[#0066cc]"
-                >
-                  Create Payouts
-                </a>
-              </div>
-            </div>
-          {/if}
+          <!-- Payouts Submenu Overlay removed for Payer as they now use direct click -->
         </li>
       {/each}
     </ul>

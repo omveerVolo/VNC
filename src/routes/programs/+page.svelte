@@ -127,7 +127,7 @@
       >
         <h1 class="text-[17px] font-semibold text-[#003366]">Programs</h1>
         <p class="mt-0.5 text-[12px] font-medium text-slate-500">
-          Manage your payment programs
+          Manage your payout programs
         </p>
       </div>
 
@@ -160,7 +160,7 @@
                   <span class="text-[13px] font-medium text-slate-400 mt-1">
                     {program.category}
                     <span class="mx-1.5">•</span>
-                    Created {program.createdAt} by {program.createdBy}
+                    Added on {program.createdAt} by {program.createdBy}
                   </span>
                 </div>
 

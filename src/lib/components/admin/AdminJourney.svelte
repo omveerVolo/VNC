@@ -55,7 +55,7 @@
             View All <span class="text-[#5b4897]">Payee</span>
           </h2>
           <p class="text-[13px] leading-relaxed text-slate-500 mt-2">
-            Receive payments from payers and manage your earnings seamlessly
+            Receive payouts from payers and manage your earnings seamlessly
           </p>
         </div>
 
@@ -76,7 +76,7 @@
               class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"
               strokeWidth={2}
             />
-            Track your payments in real-time
+            Track your Payouts in real-time
           </li>
           <li
             class="flex items-start gap-2.5 text-[13px] font-medium text-slate-700"
@@ -108,7 +108,7 @@
             View All <span class="text-[#7d326f]">Payer</span>
           </h2>
           <p class="text-[13px] leading-relaxed text-slate-500 mt-2">
-            Set up payment programs and manage payees efficiently
+            Set up payout programs and manage payees efficiently
           </p>
         </div>
 
@@ -120,7 +120,7 @@
               class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"
               strokeWidth={2}
             />
-            Configure payment programs
+            Configure payout programs
           </li>
           <li
             class="flex items-start gap-2.5 text-[13px] font-medium text-slate-700"

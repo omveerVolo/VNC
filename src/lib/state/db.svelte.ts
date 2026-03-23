@@ -132,7 +132,7 @@ export function approvePayerPayout(payoutId: string) {
   const newNotif = {
     id: `notif_${Math.floor(Math.random() * 10000)}`,
     userId: payout.userId,
-    title: "Payment Approved",
+    title: "payout Approved",
     message: `Your payout for Claim No. ${payout.claimNo} has been approved and is ready to redeem.`,
     read: false,
     date: new Date().toISOString(),
@@ -226,7 +226,7 @@ export function createPayout(payload: any | any[]) {
     const newNotif = {
       id: `notif_${Math.floor(Math.random() * 10000)}`,
       userId: targetId, // The targeted payee ID
-      title: "New Payment Created",
+      title: "New payout Created",
       message: `A new payout of ₹${formatCurrency(amount)} mapped to Claim No. ${newPayout.claimNo} has been created for you.`,
       read: false,
       date: new Date().toISOString(), // We can use ISO strings for robust sorting
@@ -304,7 +304,7 @@ export function createProgram(
     id: `notif_${Math.floor(Math.random() * 10000)}`,
     userId: authState.user.id,
     title: "Program Configured Successfully",
-    message: `Payment Program "${name}" for ${type} (${category}) is now active.`,
+    message: `payout Program "${name}" for ${type} (${category}) is now active.`,
     read: false,
     date: new Date().toISOString(),
   };
@@ -330,7 +330,7 @@ export function createProgram(
       userId: targetId,
       payeeId: targetId,
       title: "New Program Invitation",
-      message: `You have been added to the "${name}" payment program by your payer. Do you wish to accept?`,
+      message: `You have been added to the "${name}" payout program by your payer. Do you wish to accept?`,
       read: false,
       type: "invitation",
       programId: newProgram.id,
@@ -494,7 +494,7 @@ export function updateProgram(
         userId: targetId,
         payeeId: targetId,
         title: "New Program Invitation",
-        message: `You have been added to the "${name}" payment program by your payer. Do you wish to accept?`,
+        message: `You have been added to the "${name}" payout program by your payer. Do you wish to accept?`,
         read: false,
         type: "invitation",
         programId: id,

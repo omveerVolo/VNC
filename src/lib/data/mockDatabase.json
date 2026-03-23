@@ -69,7 +69,7 @@
     {
       "id": "notif_001",
       "userId": "usr_payee_01",
-      "title": "Payment Approved",
+      "title": "payout Approved",
       "message": "Your payout for Claim No. VADE0B112233 has been approved and is ready to redeem.",
       "read": false,
       "date": "2026-03-10T10:00:00Z"

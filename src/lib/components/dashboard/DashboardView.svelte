@@ -24,7 +24,7 @@
   let lastUserId = $state<string | undefined>(undefined);
 
   const formatCurrency = (val: number) => {
-    return "₹" + val.toLocaleString("en-IN");
+    return "₹" + Math.round(val).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   };
 
   // Resolve the target token context explicitly mapping Admin logic vs standard access
@@ -132,8 +132,14 @@
           dbId: p.id,
           payoutId: p.payoutId,
           id: p.transactionId || p.trackingId || p.claimNo,
-          name: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
-          provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName), // Fallback for the modal
+          name:
+            activeUser?.role === "payee"
+              ? payerName
+              : p.providerName || p.businessName,
+          provider:
+            activeUser?.role === "payee"
+              ? payerName
+              : p.providerName || p.businessName, // Fallback for the modal
           category: program?.name || "Unknown Program",
           amount: "₹" + p.amount,
           payableAmount: "₹" + p.amount, // Fallback for the modal
@@ -146,34 +152,82 @@
   );
 
   // Dynamic metrics based on dbStore
+  let filteredAccessiblePrograms = $derived(
+    accessiblePrograms.filter((p: any) =>
+      programFilter === "All Program" ? true : p.name === programFilter
+    )
+  );
+
   let dynamicMetrics = $derived({
-    totalPayout: mappedPayouts.reduce((sum: number, p: any) => {
-      const amt = parseInt(p.amount.replace(/[^0-9]/g, "")) || 0;
-      return sum + amt;
-    }, 0),
-    activePayee:
-      activeUser?.role === "payer"
-        ? new Set(accessiblePrograms.flatMap((p: any) => p.enrolledPayees))
-            .size || 0
-        : 3,
-    totalCardsRedeemed: dbStore.payouts.filter((p: any) => {
+    totalPayout: dbStore.payouts.reduce((sum: number, p: any) => {
       const isRedeemed = p.status === "Redeemed";
+      const programMatch =
+        programFilter === "All Program"
+          ? true
+          : p.programId ===
+            dbStore.programs.find((pr: any) => pr.name === programFilter)?.id;
       const isAuthorized =
         activeUser?.role === "payer"
-          ? accessiblePrograms.some((prog: any) => prog.id === p.programId)
+          ? filteredAccessiblePrograms.some(
+              (prog: any) => prog.id === p.programId
+            )
           : activeUser?.role === "admin" && !authState.isAdminView
             ? true
             : p.userId === activeUser?.id;
-      return isRedeemed && isAuthorized;
+
+      if (isRedeemed && isAuthorized && programMatch) {
+        const cleanAmt = String(p.amount || "0").replace(/[₹,\s]/g, "");
+        const baseAmt = parseFloat(cleanAmt) || 0;
+        const tdsNum = parseFloat(p.tds) || 0;
+        const finalPayable = baseAmt - (baseAmt * tdsNum) / 100;
+        return sum + finalPayable;
+      }
+      return sum;
+    }, 0),
+    activePayee:
+      activeUser?.role === "payer"
+        ? new Set(
+            filteredAccessiblePrograms.flatMap((p: any) => p.enrolledPayees)
+          ).size || 0
+        : 3,
+    totalCardsRedeemed: dbStore.payouts.filter((p: any) => {
+      const isRedeemed = p.status === "Redeemed";
+      const programMatch =
+        programFilter === "All Program"
+          ? true
+          : p.programId ===
+            dbStore.programs.find((pr: any) => pr.name === programFilter)?.id;
+      const isAuthorized =
+        activeUser?.role === "payer"
+          ? filteredAccessiblePrograms.some(
+              (prog: any) => prog.id === p.programId
+            )
+          : activeUser?.role === "admin" && !authState.isAdminView
+            ? true
+            : p.userId === activeUser?.id;
+      return isRedeemed && isAuthorized && programMatch;
     }).length,
-    totalPrograms: accessiblePrograms.length
+    totalPrograms: filteredAccessiblePrograms.length
   });
 
   let payeeMetrics = $derived({
-    totalPayout: mappedPayouts.reduce((sum: number, p: any) => {
-      if (p.status === "Redeemed" || p.status === "Settled") {
-        const amt = parseInt(p.amount.replace(/[^0-9]/g, "")) || 0;
-        return sum + amt;
+    totalPayout: dbStore.payouts.reduce((sum: number, p: any) => {
+      const isRedeemed = p.status === "Redeemed";
+      const programMatch =
+        programFilter === "All Program"
+          ? true
+          : p.programId ===
+            dbStore.programs.find((pr: any) => pr.name === programFilter)?.id;
+      const isAuthorized =
+        (activeUser?.role === "admin" && !authState.isAdminView) ||
+        p.userId === activeUser?.id;
+
+      if (isRedeemed && isAuthorized && programMatch) {
+        const cleanAmt = String(p.amount || "0").replace(/[₹,\s]/g, "");
+        const baseAmt = parseFloat(cleanAmt) || 0;
+        const tdsNum = parseFloat(p.tds) || 0;
+        const finalPayable = baseAmt - (baseAmt * tdsNum) / 100;
+        return sum + finalPayable;
       }
       return sum;
     }, 0),
@@ -182,15 +236,21 @@
       (p: any) =>
         ((activeUser?.role === "admin" && !authState.isAdminView) ||
           p.userId === activeUser?.id) &&
-        p.status === "Ready to redeem"
+        p.status === "Ready to redeem" &&
+        (programFilter === "All Program" ||
+          p.programId ===
+            dbStore.programs.find((pr: any) => pr.name === programFilter)?.id)
     ).length,
     settledPayouts: dbStore.payouts.filter(
       (p: any) =>
         ((activeUser?.role === "admin" && !authState.isAdminView) ||
           p.userId === activeUser?.id) &&
-        p.status === "Settled"
+        p.status === "Settled" &&
+        (programFilter === "All Program" ||
+          p.programId ===
+            dbStore.programs.find((pr: any) => pr.name === programFilter)?.id)
     ).length,
-    activePayers: accessiblePrograms.length
+    activePrograms: filteredAccessiblePrograms.length
   });
 
   const pctChange = (current: number, previous: number) => {
@@ -332,7 +392,9 @@
             Welcome back!
           </h1>
           <p class="mt-1 text-[13px] font-medium text-slate-500">
-            Track your payments and earnings
+            {activeUser?.role === "payer"
+              ? "Track your Payouts"
+              : "Track your earnings"}
           </p>
         </div>
 
@@ -364,10 +426,10 @@
 
             <div class="flex items-center gap-3">
               <button
-                onclick={() => goto("/create-payment")}
+                onclick={() => goto("/create-payout")}
                 class="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 cursor-pointer"
               >
-                + Create Payment
+                + Create Payout
               </button>
               <button
                 onclick={() => dispatch("createProgram")}
@@ -376,6 +438,7 @@
                 + New Program
               </button>
               <button
+                onclick={() => goto("/reports")}
                 class="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 cursor-pointer"
               >
                 Export Report
@@ -460,10 +523,10 @@
             <MetricCard
               title={activeUser?.role === "admin"
                 ? "Total Programs"
-                : "Active Payers"}
+                : "Active Programs"}
               value={activeUser?.role === "admin"
                 ? accessiblePrograms.length
-                : payeeMetrics.activePayers}
+                : payeeMetrics.activePrograms}
               width="w-full lg:w-[20%]"
             />
           </div>
@@ -530,7 +593,7 @@
                         No active payers
                       </p>
                       <p class="text-[12px] text-slate-400 mt-0.5 text-center">
-                        You have not received any payments yet.
+                        You have not received any payouts yet.
                       </p>
                     </div>
                   {/each}

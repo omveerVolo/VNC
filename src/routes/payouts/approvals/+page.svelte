@@ -46,16 +46,19 @@
           // Admin should only review/see items that trigger a payee's workflow
           const cleanAmount = String(p.amount || "0").replace(/[₹,]/g, "");
           const amountValue = parseInt(cleanAmount, 10) || 0;
-          
+
           // Evaluate against active Payee workflows
           const matchingWf = dbStore.workflows?.find((wf: any) => {
             if (wf.payeeId !== p.payeeId) return false;
-            
+
             const wfAmount = Number(wf.amount) || 0;
-            if (wf.compareKey === "More than" && amountValue > wfAmount) return true;
-            if (wf.compareKey === "Less than" && amountValue < wfAmount) return true;
-            if (wf.compareKey === "Equals" && amountValue === wfAmount) return true;
-            
+            if (wf.compareKey === "More than" && amountValue > wfAmount)
+              return true;
+            if (wf.compareKey === "Less than" && amountValue < wfAmount)
+              return true;
+            if (wf.compareKey === "Equals" && amountValue === wfAmount)
+              return true;
+
             return false;
           });
 
@@ -66,7 +69,7 @@
           if (authState.isAdminView && authState.viewingAs) {
             return p.userId === authState.viewingAs.id;
           }
-          
+
           return true;
         }
 
@@ -88,7 +91,9 @@
         const q = searchQuery.toLowerCase();
         return (
           p.providerName.toLowerCase().includes(q) ||
-          (p.transactionId || p.trackingId || p.claimNo || "").toLowerCase().includes(q)
+          (p.transactionId || p.trackingId || p.claimNo || "")
+            .toLowerCase()
+            .includes(q)
         );
       })
       .map((p: any) => {
@@ -110,14 +115,19 @@
         const baseAmt = parseFloat(cleanAmt) || 0;
         const tdsNum = parseFloat(p.tds) || 0;
         const finalPayable = baseAmt - (baseAmt * tdsNum) / 100;
-        const formattedPayable = finalPayable.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        const formattedPayable = finalPayable.toLocaleString("en-IN", {
+          maximumFractionDigits: 2
+        });
 
         return {
           dbId: p.id, // Keep a reference to the global mutable ID
           payoutId: p.payoutId,
           id: p.transactionId || p.trackingId || p.claimNo,
           program: program?.name || "Medical Payouts 2026",
-          provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
+          provider:
+            activeUser?.role === "payee"
+              ? payerName
+              : p.providerName || p.businessName,
           patientName: p.patientName,
           createdAt: p.date,
           approvedAmount: `₹${p.amount}`,
@@ -131,7 +141,10 @@
   );
 
   let paginatedPayouts = $derived(
-    filteredPayouts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    filteredPayouts.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    )
   );
 
   let totalPages = $derived(
@@ -182,7 +195,7 @@
 </script>
 
 <svelte:head>
-  <title>{isInternalAdmin ? "Approved" : "Approve"} Payments - HDFC Bank</title>
+  <title>{isInternalAdmin ? "Approved" : "Approve"} payouts - HDFC Bank</title>
 </svelte:head>
 
 <div
@@ -420,7 +433,7 @@
               <p
                 class="text-[13px] text-slate-500 mt-1 text-center max-w-[300px]"
               >
-                There are no relevant payments currently available in this view.
+                There are no relevant payouts currently available in this view.
               </p>
             </div>
           {/each}
@@ -430,14 +443,30 @@
 
     <!-- Floating Action Button (Only for Payer) -->
     {#if !isInternalAdmin}
-      <div class="absolute bottom-8 right-8 lg:bottom-12 lg:right-12">
-        <button
-          onclick={handleApprove}
-          disabled={selectedPayoutIds.length === 0}
-          class="bg-[#6e56cf] hover:bg-[#5a46aa] text-white px-8 py-3 rounded-xl text-[14px] font-semibold shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Approve
-        </button>
+      <div
+        class="fixed bottom-0 left-0 md:left-28 right-0 flex items-center justify-center border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.1)] z-40 p-6"
+      >
+        <div class="flex items-center justify-between w-full max-w-[1400px]">
+          <div class="flex items-center gap-4">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 font-bold text-sm"
+            >
+              {selectedPayoutIds.length}
+            </div>
+            <span class="text-sm font-semibold text-slate-700"
+              >Selected Payouts to Approve</span
+            >
+          </div>
+          <button
+            onclick={handleApprove}
+            disabled={selectedPayoutIds.length === 0}
+            class="bg-[#6e56cf] hover:bg-[#5a46aa] text-white px-12 py-3.5 rounded-xl text-[14px] font-bold border-none shadow-md shadow-indigo-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5"
+          >
+            Approve {selectedPayoutIds.length > 0
+              ? selectedPayoutIds.length
+              : ""} Payouts
+          </button>
+        </div>
       </div>
     {/if}
 
@@ -453,7 +482,7 @@
           onclick={(e) => e.stopPropagation()}
         >
           <h2 class="text-[17px] font-semibold text-[#3b2b73] mb-6 text-center">
-            All Payments Approved
+            All payouts Approved
           </h2>
           <button
             class="w-full py-2.5 rounded-lg bg-[#5b4897] text-white text-[13px] font-semibold shadow-sm hover:bg-[#433177] transition-colors cursor-pointer"

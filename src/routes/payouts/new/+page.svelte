@@ -54,7 +54,7 @@
         return p.status === "Ready to redeem" || p.status === "Pending";
       })
       .filter((p: any) => {
-        // Admin should not see payouts here anymore, they have their own "Approved Payments" page
+        // Admin should not see payouts here anymore, they have their own "Approved payouts" page
         if (activeUser?.role === "admin") return false;
 
         if (activeUser?.role === "payee") {
@@ -72,7 +72,9 @@
         const q = searchQuery.toLowerCase();
         return (
           p.providerName.toLowerCase().includes(q) ||
-          (p.transactionId || p.trackingId || p.claimNo || "").toLowerCase().includes(q)
+          (p.transactionId || p.trackingId || p.claimNo || "")
+            .toLowerCase()
+            .includes(q)
         );
       })
       .map((p: any) => {
@@ -103,7 +105,10 @@
           payoutId: p.payoutId,
           id: p.transactionId || p.trackingId || p.claimNo,
           program: program?.name || "Medical Payouts 2026",
-          provider: activeUser?.role === "payee" ? payerName : (p.providerName || p.businessName),
+          provider:
+            activeUser?.role === "payee"
+              ? payerName
+              : p.providerName || p.businessName,
           patientName: p.patientName,
           createdAt: p.date,
           approvedAmount: `₹${p.amount}`,
@@ -117,7 +122,10 @@
   );
 
   let paginatedPayouts = $derived(
-    filteredPayouts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    filteredPayouts.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    )
   );
 
   let totalPages = $derived(
@@ -180,10 +188,7 @@
   <div
     class="mt-20 w-full rounded-2xl border border-slate-100 bg-white p-8 lg:p-12 shadow-sm flex flex-col overflow-hidden"
   >
-    <h1 class="text-2xl tracking-tight text-slate-800 mb-8">
-      <span class="text-[#3b2b73]">Manage</span> and
-      <span class="text-[#3b2b73]">redeem</span> your approved claims
-    </h1>
+    <h1 class="text-2xl tracking-tight text-[#3b2b73] mb-8">Redeem payouts</h1>
 
     <div class="w-full overflow-x-auto pb-4">
       <div class="min-w-[1000px] flex flex-col">

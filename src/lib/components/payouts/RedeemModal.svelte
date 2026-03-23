@@ -93,7 +93,7 @@
             NDC Approval Document
           </h2>
           <p class="text-[15px] font-semibold text-slate-700 mb-6 mt-1">
-            Review and authorize payment
+            Review and authorize payout
           </p>
 
           <div
@@ -127,15 +127,15 @@
                 > intimated to Star Health and Allied Insurance Co. Ltd.
               </p>
               <p>
-                We wish to inform you that outstanding payment for cashless
-                claim no. <span class="font-semibold">{payout.id}</span> with Star
-                Health & Allied Insurance Co. Ltd. has been cleared/paid and settled.
+                We wish to inform you that outstanding payout for cashless claim
+                no. <span class="font-semibold">{payout.id}</span> with Star Health
+                & Allied Insurance Co. Ltd. has been cleared/paid and settled.
               </p>
               <p>
                 We acknowledge that there are no further dues/fees/charges
                 pending from Star Health and Allied Insurance Co. Ltd.
                 pertaining to aforementioned transactions and acknowledge the
-                receipt of payments thereof.
+                receipt of payouts thereof.
               </p>
               <div class="pt-4 space-y-0.5">
                 <p>Yours' Sincerely</p>
@@ -195,16 +195,16 @@
             onclick={handleNext}
             disabled={isProcessing || !acceptedTerms}
           >
-            {isProcessing ? "Processing..." : "Proceed to Payment"}
+            {isProcessing ? "Processing..." : "Proceed to payout"}
           </button>
         </div>
       {:else if step === 2}
-        <!-- STEP 2: Payment Gateway (Virtual Card) (Shifted from Step 3) -->
+        <!-- STEP 2: payout Gateway (Virtual Card) (Shifted from Step 3) -->
         <div class="flex flex-col items-center">
           <h2
             class="text-[18px] font-semibold text-[#003366] w-full text-left mb-1"
           >
-            Payment Gateway
+            payout Gateway
           </h2>
           <p
             class="text-[12px] font-medium text-slate-500 w-full text-left mb-6"
@@ -320,16 +320,16 @@
             onclick={handleNext}
             disabled={isProcessing}
           >
-            {isProcessing ? "Processing..." : "Continue to Payment"}
+            {isProcessing ? "Processing..." : "Continue to payout"}
           </button>
         </div>
       {:else if step === 3}
-        <!-- STEP 3: Complete Payment (Add a new card modal) -->
+        <!-- STEP 3: Complete payout (Add a new card modal) -->
         <div class="flex flex-col items-center">
           <h2
             class="text-[18px] font-semibold text-[#003366] w-full text-left mb-1"
           >
-            Complete Payment
+            Complete payout
           </h2>
           <p
             class="text-[12px] font-medium text-slate-500 w-full text-left mb-6"
@@ -425,15 +425,15 @@
             onclick={handleNext}
             disabled={isProcessing}
           >
-            <span>Complete Payment</span>
+            <span>Complete payout</span>
             <span>₹{formatCurrency(payout.payableAmount)}</span>
           </button>
         </div>
       {:else if step === 4}
-        <!-- STEP 3: Complete Payment (Shifted from Step 4) -->
+        <!-- STEP 3: Complete payout (Shifted from Step 4) -->
         <div class="flex flex-col">
           <h2 class="text-[18px] font-semibold text-[#003366] mb-1">
-            Complete Payment
+            Complete payout
           </h2>
           <p class="text-[12px] font-medium text-slate-500 mb-6">
             Review claim details before deduction
@@ -481,7 +481,9 @@
               </div>
               <div class="flex justify-between items-center text-[12px]">
                 <span class="font-medium text-slate-500">Applicable TDS</span>
-                <span class="font-semibold text-slate-800 mt-0"> {payout.tds || "0%"}</span>
+                <span class="font-semibold text-slate-800 mt-0">
+                  {payout.tds || "0%"}</span
+                >
               </div>
               <!-- Dotted divider -->
               <div
@@ -501,7 +503,7 @@
           <div class="flex items-center gap-2 mb-6">
             <Lock class="h-3 w-3 text-slate-400" />
             <span class="text-[10px] font-medium text-slate-400"
-              >Secured via HDFC Payment Systems</span
+              >Secured via HDFC payout Systems</span
             >
           </div>
 
@@ -578,7 +580,7 @@
             onclick={handleNext}
             disabled={isProcessing || otpValues.join("").length < 6}
           >
-            {isProcessing ? "Verifying..." : "Verify & Complete Payment"}
+            {isProcessing ? "Verifying..." : "Verify & Complete payout"}
           </button>
         </div>
       {:else if step === 6}
@@ -596,7 +598,7 @@
           <h2
             class="text-[22px] font-semibold text-slate-800 tracking-tight leading-none mb-1"
           >
-            Payment Successful
+            payout Successful
           </h2>
           <p class="text-[12px] font-medium text-slate-500 mb-8">
             Your claim has been redeemed

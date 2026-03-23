@@ -16,7 +16,7 @@
   // Step 2: Business Overview
   let category = $state("");
   let subCategory = $state("");
-  let paymentMethod = $state("without"); // without, with
+  let payoutMethod = $state("without"); // without, with
 
   // Step 3: Business Details
   let businessName = $state("");
@@ -163,28 +163,28 @@
 
             <div class="mb-8 flex flex-col gap-4">
               <p class="text-[14px] font-semibold text-slate-800">
-                How do you wish to accepts payments
+                How do you wish to accepts payouts
               </p>
               <div class="flex items-center gap-8">
                 <label class="flex items-center gap-2 cursor-pointer group">
                   <div
-                    class="flex h-4 w-4 items-center justify-center rounded-full border {paymentMethod ===
+                    class="flex h-4 w-4 items-center justify-center rounded-full border {payoutMethod ===
                     'without'
                       ? 'border-[#00c04b] bg-white'
                       : 'border-slate-300'} transition-colors"
                   >
-                    {#if paymentMethod === "without"}
+                    {#if payoutMethod === "without"}
                       <div class="h-2 w-2 rounded-full bg-[#00c04b]"></div>
                     {/if}
                   </div>
                   <input
                     type="radio"
                     value="without"
-                    bind:group={paymentMethod}
+                    bind:group={payoutMethod}
                     class="hidden"
                   />
                   <span
-                    class="text-[14px] font-medium {paymentMethod === 'without'
+                    class="text-[14px] font-medium {payoutMethod === 'without'
                       ? 'text-slate-800'
                       : 'text-slate-400'}">Without Website/App</span
                   >
@@ -192,23 +192,23 @@
 
                 <label class="flex items-center gap-2 cursor-pointer group">
                   <div
-                    class="flex h-4 w-4 items-center justify-center rounded-full border {paymentMethod ===
+                    class="flex h-4 w-4 items-center justify-center rounded-full border {payoutMethod ===
                     'with'
                       ? 'border-[#00c04b] bg-white'
                       : 'border-slate-300'} transition-colors"
                   >
-                    {#if paymentMethod === "with"}
+                    {#if payoutMethod === "with"}
                       <div class="h-2 w-2 rounded-full bg-[#00c04b]"></div>
                     {/if}
                   </div>
                   <input
                     type="radio"
                     value="with"
-                    bind:group={paymentMethod}
+                    bind:group={payoutMethod}
                     class="hidden"
                   />
                   <span
-                    class="text-[14px] font-medium {paymentMethod === 'with'
+                    class="text-[14px] font-medium {payoutMethod === 'with'
                       ? 'text-slate-800'
                       : 'text-slate-400'}">On my Website/App</span
                   >

@@ -14,7 +14,6 @@
   let step = $state(1);
   let isLoading = $state(false);
   let errorMessage = $state("");
-  let currentImage = $state("two.png");
 
   onMount(() => {
     logout();
@@ -123,34 +122,11 @@
       <div
         class="relative h-full w-full flex items-center justify-center rounded-[32px] bg-[#231a4a] overflow-hidden"
       >
-        <!-- Image one -->
-        <img
-          src="/one.png"
-          alt="Login Dashboard 1"
-          class="absolute left-1/2 -translate-x-1/2 h-full transition-all hover:scale-[1.02] duration-700 ease-in-out {currentImage === 'one.png' ? 'opacity-100 visible z-10' : 'opacity-0 invisible z-0'}"
-        />
-        <!-- Image two -->
         <img
           src="/two.png"
-          alt="Login Dashboard 2"
-          class="absolute left-1/2 -translate-x-1/2 h-full transition-all hover:scale-[1.02] duration-700 ease-in-out {currentImage === 'two.png' ? 'opacity-100 visible z-10' : 'opacity-0 invisible z-0'}"
+          alt="Login Dashboard"
+          class="absolute left-1/2 -translate-x-1/2 h-full transition-all hover:scale-[1.02] duration-700 ease-in-out z-10"
         />
-        
-        <!-- Carousel Dots -->
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
-          <button
-            type="button"
-            aria-label="Show image one"
-            onclick={() => currentImage = "one.png"}
-            class="h-2.5 rounded-full transition-all duration-300 {currentImage === 'one.png' ? 'w-8 bg-white' : 'w-2.5 bg-white/50 hover:bg-white/80'}"
-          ></button>
-          <button
-            type="button"
-            aria-label="Show image two"
-            onclick={() => currentImage = "two.png"}
-            class="h-2.5 rounded-full transition-all duration-300 {currentImage === 'two.png' ? 'w-8 bg-white' : 'w-2.5 bg-white/50 hover:bg-white/80'}"
-          ></button>
-        </div>
       </div>
     </div>
 

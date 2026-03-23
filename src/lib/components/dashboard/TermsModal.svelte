@@ -29,9 +29,9 @@
 
     <div class="rounded-xl border border-slate-200 p-6 mb-8 bg-white shadow-sm">
       <div class="mb-6 flex flex-col gap-1">
-        <h3 class="text-[15px] font-semibold text-slate-900">Payment Terms</h3>
+        <h3 class="text-[15px] font-semibold text-slate-900">payout Terms</h3>
         <p class="text-[12px] text-slate-500 leading-relaxed font-medium">
-          By accepting these terms, you agree to receive payments through our
+          By accepting these terms, you agree to receive payouts through our
           platform. All transactions will be processed securely and in
           accordance with applicable regulations.
         </p>

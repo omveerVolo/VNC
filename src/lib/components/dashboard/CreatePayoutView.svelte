@@ -138,7 +138,8 @@
   let fileInput = $state<HTMLInputElement>();
   let csvData = $state<any[]>([]);
   let isUploadingCsv = $state(false);
-
+  let isDraggingFile = $state(false);
+  let csvUploadError = $state("");
   // Download Template State
   let isTemplateReady = $state(false);
 
@@ -148,7 +149,6 @@
     // Construct headers: Core fields + any required custom fields from the program
     const coreHeaders = [
       "Program Name",
-      "Business Name",
       "Email",
       "Transaction ID",
       "Tracking ID",
@@ -165,12 +165,11 @@
     // Add example row pre-filled with the current Program Name and helpful placeholders
     const exampleRow = [
       realProgram?.name || "Program Name",
-      "Example Business Ltd", // Business Name
-      "finance@example.com",  // Email
+      "finance@example.com", // Email
       `TXN${Math.floor(Math.random() * 1000000)}`, // Transaction ID
       `TRK${Math.floor(Math.random() * 1000000)}`, // Tracking ID
-      "50000",                // Amount
-      "10"                    // TDS
+      "50000", // Amount
+      "10" // TDS
     ];
 
     // Add hyphens for any remaining custom program fields
@@ -190,14 +189,14 @@
     link.download = `${cleanProgramName}_template.csv`;
     document.body.appendChild(link);
     link.click();
-    
+
     // Add a slight delay before cleaning up the DOM and object URL
     // Normal Chrome tabs with heavy extensions can cancel the download if the element is removed synchronously
     setTimeout(() => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     }, 200);
-    
+
     // We intentionally do NOT set isTemplateReady to false here,
     // otherwise it replaces the button with a permanent loading spinner.
   }
@@ -245,11 +244,27 @@
     }
   });
 
-  async function handleCsvUpload(e: Event) {
-    const target = e.target as HTMLInputElement;
-    if (!target.files || target.files.length === 0) return;
+  async function processFile(file: File) {
+    if (!file) return;
+    csvUploadError = "";
 
-    const file = target.files[0];
+    try {
+      const text = await file.text();
+      const rows = text.split(/\r?\n/);
+      if (rows.length > 1) {
+        const headers = rows[0].split(",");
+        const programNameIndex = headers.findIndex((h) => h.trim().replace(/^"|"$/g, '') === "Program Name");
+        if (programNameIndex !== -1) {
+          const firstDataRow = rows[1].split(",");
+          const csvProgramName = firstDataRow[programNameIndex]?.trim().replace(/^"|"$/g, '');
+          if (csvProgramName && csvProgramName !== selectedProgram) {
+            csvUploadError = `Warning: The Program Name in the CSV ("${csvProgramName}") does not match the currently selected program ("${selectedProgram}").`;
+            return;
+          }
+        }
+      }
+    } catch(e) {}
+
     isUploadingCsv = true;
     bulkStep = "upload"; // Instantly switch UI text to upload state
 
@@ -291,7 +306,40 @@
       console.error("Error bulk uploading CSV", err);
     } finally {
       isUploadingCsv = false;
-      target.value = ""; // reset input
+      if (fileInput) fileInput.value = ""; // reset input
+    }
+  }
+
+  async function handleCsvUpload(e: Event) {
+    const target = e.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) return;
+    await processFile(target.files[0]);
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    if (selectedProgram !== "No Active Programs") {
+      isDraggingFile = true;
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.preventDefault();
+    isDraggingFile = false;
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    isDraggingFile = false;
+    if (selectedProgram === "No Active Programs") return;
+    
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+        processFile(file);
+      } else {
+        validationError = "Please select a valid CSV file.";
+      }
     }
   }
 
@@ -321,7 +369,7 @@
     } else {
       // Validate Single Payout
       if (!selectedPayee || selectedPayee === "No Payees Available") {
-        validationError = "Please select a valid Business receiving payment.";
+        validationError = "Please select a valid Business receiving payout.";
         return;
       }
 
@@ -482,7 +530,7 @@
               <h4 class="text-xl font-bold text-slate-900 mb-2">Bulk Upload</h4>
               <p class="text-[13px] font-medium text-slate-500 leading-relaxed">
                 Upload a CSV file to process multiple payouts instantly.
-                Automatically maps recipients to payments, expediting bulk
+                Automatically maps recipients to payouts, expediting bulk
                 processing.
               </p>
             </button>
@@ -555,7 +603,7 @@
                   <label
                     for="selectPayee"
                     class="text-xs font-medium text-slate-600 flex items-center"
-                    >Business receiving payment<span class="text-red-500 ml-1"
+                    >Business receiving payout<span class="text-red-500 ml-1"
                       >*</span
                     ></label
                   >
@@ -678,9 +726,9 @@
             </div>
           </div>
 
-          <!-- Right Column: Payment Details & Transaction ID -->
+          <!-- Right Column: payout Details & Transaction ID -->
           <div class="flex flex-col gap-10">
-            <!-- 2. Payment Details -->
+            <!-- 2. payout Details -->
             <div class="flex flex-col gap-4">
               <div class="flex items-center gap-2">
                 <span
@@ -688,7 +736,7 @@
                   >2</span
                 >
                 <h3 class="text-sm font-semibold text-slate-900">
-                  Payment Details
+                  payout Details
                 </h3>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 pl-7">
@@ -1094,20 +1142,29 @@
 
                 {#if bulkStep === "program" && csvData.length === 0}
                   <div class="mt-4">
+                    <!-- Drag and Drop Zone -->
                     <button
+                      type="button"
                       onclick={() => fileInput?.click()}
-                      disabled={isUploadingCsv ||
-                        selectedProgram === "No Active Programs"}
-                      class="rounded-xl bg-[#7d326f] px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#68295c] active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      ondragover={handleDragOver}
+                      ondragleave={handleDragLeave}
+                      ondrop={handleDrop}
+                      disabled={isUploadingCsv || selectedProgram === "No Active Programs"}
+                      class="relative w-full flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-2xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group {isDraggingFile ? 'border-[#7d326f] bg-[#7d326f]/5' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400'}"
                     >
                       {#if isUploadingCsv}
-                        <div
-                          class="h-4 w-4 animate-spin rounded-full border-2 border-slate-50 border-t-transparent"
-                        ></div>
-                        Uploading...
+                        <div class="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#7d326f] mb-4"></div>
+                        <p class="text-sm font-semibold text-slate-700">Uploading and Parsing File...</p>
                       {:else}
-                        <Upload class="h-4 w-4" />
-                        Upload File
+                        <div class="h-14 w-14 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center text-slate-500 mb-4 group-hover:text-[#7d326f] transition-colors">
+                          <Upload class="h-6 w-6" />
+                        </div>
+                        <p class="text-[15px] font-semibold text-slate-800">
+                          Click to upload or drag and drop
+                        </p>
+                        <p class="text-xs font-medium text-slate-500 mt-1.5">
+                          CSV template mapping to program limits
+                        </p>
                       {/if}
                     </button>
                     <!-- Move hidden file input out here so it's clickable from step 1 -->
@@ -1118,6 +1175,12 @@
                       bind:this={fileInput}
                       onchange={handleCsvUpload}
                     />
+                    {#if csvUploadError}
+                      <div class="mt-4 flex items-center gap-3 rounded-xl bg-orange-50 border border-orange-100 p-4 shadow-sm animate-in fade-in duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle text-orange-500 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                        <span class="text-[13px] font-semibold text-orange-700">{csvUploadError}</span>
+                      </div>
+                    {/if}
                   </div>
                 {/if}
               </div>
@@ -1197,9 +1260,6 @@
                             >
                               <tr>
                                 <th class="p-4 border-r border-slate-100"
-                                  >Business Name</th
-                                >
-                                <th class="p-4 border-r border-slate-100"
                                   >Email</th
                                 >
                                 <th class="p-4 border-r border-slate-100"
@@ -1218,11 +1278,7 @@
                               {#each csvData as row (row.id)}
                                 <tr class="hover:bg-slate-50 transition-colors">
                                   <td
-                                    class="p-4 font-semibold text-[#003366] border-r border-slate-100"
-                                    >{row.businessName}</td
-                                  >
-                                  <td
-                                    class="p-4 font-medium text-slate-600 border-r border-slate-100"
+                                    class="p-4 font-semibold text-slate-600 border-r border-slate-100"
                                     >{row.email}</td
                                   >
                                   <td

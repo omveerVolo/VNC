@@ -29,10 +29,10 @@
             <input
               id="profileName"
               type="text"
-              value={authState.user?.name || "Payee Sharma"}
+              value={authState.user?.name || "Rahul Sharma"}
               readonly
               disabled
-              class="w-full rounded-md border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 outline-none cursor-not-allowed opacity-70"
+              class="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 outline-none cursor-not-allowed"
             />
           </div>
           <div class="flex flex-col gap-2">
@@ -44,10 +44,10 @@
             <input
               id="profilePhone"
               type="text"
-              value="+91 8076944185"
+              value="+91 9876543210"
               readonly
               disabled
-              class="w-full rounded-md border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 outline-none cursor-not-allowed opacity-70"
+              class="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 outline-none cursor-not-allowed"
             />
           </div>
         </div>
@@ -88,24 +88,30 @@
       <div class="bg-slate-100 rounded-xl p-6 flex flex-col gap-4">
         <input
           type="text"
-          value="Dummy Authority"
+          value="Acme Healthcare Solutions"
           readonly
           disabled
-          class="w-full rounded-md border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 outline-none cursor-not-allowed opacity-70"
+          class="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 outline-none cursor-not-allowed"
         />
         <input
           type="email"
-          value="Dummy@gmail.com"
+          value={authState.user?.email || "finance@acmehealthcare.in"}
           readonly
           disabled
-          class="w-full rounded-md border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 outline-none cursor-not-allowed opacity-70"
+          class="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 outline-none cursor-not-allowed"
         />
+        <label
+          for="orgAddress"
+          class="text-[13px] font-semibold text-slate-700 mt-2"
+          >Organization Address</label
+        >
         <input
+          id="orgAddress"
           type="text"
-          value="+91 9998548854"
+          value="123 Business Tower, Lower Parel, Mumbai, Maharashtra 400013"
           readonly
           disabled
-          class="w-full rounded-md border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm text-slate-400 outline-none cursor-not-allowed opacity-70"
+          class="w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 outline-none cursor-not-allowed"
         />
       </div>
     </div>

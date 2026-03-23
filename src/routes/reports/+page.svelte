@@ -69,7 +69,10 @@
       const payers = new Map();
       dbStore.programs.forEach((p: any) => {
         if (!payers.has(p.payerId)) {
-          payers.set(p.payerId, { id: p.payerId, name: p.createdBy || p.payerName || "Unknown Payer" });
+          payers.set(p.payerId, {
+            id: p.payerId,
+            name: p.createdBy || p.payerName || "Unknown Payer"
+          });
         }
       });
       return Array.from(payers.values());
@@ -137,31 +140,7 @@
       <div
         class="border-b border-slate-200 bg-[#f8f9fa] px-6 py-5 flex items-center justify-between"
       >
-        <h2 class="text-[17px] font-semibold text-[#003366]">Manage Report</h2>
-        <button
-          class="relative flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition-colors border border-slate-200 shadow-sm cursor-pointer"
-          aria-label="Manage Report Settings"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            ><path
-              d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
-            /><path
-              d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
-            /></svg
-          >
-          <span
-            class="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-rose-500"
-          ></span>
-        </button>
+        <h2 class="text-[17px] font-semibold text-[#003366]">Reports</h2>
       </div>
 
       <div class="px-6 pb-6 w-full">
